@@ -111,21 +111,21 @@ async function start(config: AppConfig): Promise<void> {
     const MAX_RETRIES_UNAUTHENTICATED = 10; // Allow many retries — each gives a QR the user may be scanning
     let qrShown = false; // Track if QR was ever displayed
 
-    // Create auth state ONCE and persist initial creds immediately.
-    // This prevents generating new noise keys on every reconnect attempt,
-    // which WhatsApp interprets as many different devices → rate limiting.
-    const { state: authState, saveCreds } = await useMultiFileAuthState(sessionDir);
-    await saveCreds(); // Persist initial noise/identity keys to disk immediately
-    const hasCredentials = authState.creds.registered;
-
-    if (!hasCredentials) {
-        logger.info("No credentials found — starting QR code pairing flow...");
-    }
-
     const connectSocket = async (): Promise<void> => {
+        // Re-read auth state from disk on each connection attempt.
+        // After QR scan, Baileys saves creds via saveCreds → disk, then sends
+        // restartRequired (515). Fresh read picks up the new credentials.
+        const { state: authState, saveCreds } = await useMultiFileAuthState(sessionDir);
+
+        if (!authState.creds.registered) {
+            logger.info("No credentials found — starting QR code pairing flow...");
+        }
+
         const sock = makeWASocket({
             auth: authState,
             browser: Browsers.macOS("ForkScout"),
+            // getMessage is required for message retry/decryption (poll votes, failed sends)
+            getMessage: async (_key) => undefined,
         });
 
         // Save credentials on update
@@ -151,6 +151,17 @@ async function start(config: AppConfig): Promise<void> {
                     setWhatsAppDisconnected();
                     retryCount = 0;
                     return; // Don't reconnect — user logged out
+                }
+
+                // After QR scan, WA sends restartRequired (515) — create a fresh socket
+                // with the newly saved credentials. This is the normal pairing success flow.
+                if (reason === DisconnectReason.restartRequired) {
+                    logger.info("Restart required (likely post-scan) — reconnecting with fresh credentials...");
+                    retryCount = 0;
+                    qrShown = false;
+                    await sleep(1000);
+                    connectSocket();
+                    return;
                 }
 
                 // If not yet authenticated, limit retries with backoff
