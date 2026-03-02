@@ -114,11 +114,20 @@ bun run typecheck
 
 ### All Ports at a Glance
 
-| Port   | Service              | Config location                                                |
-| ------ | -------------------- | -------------------------------------------------------------- |
-| `8080` | SearXNG (web search) | `docker-compose.yml`                                           |
-| `3211` | forkscout-memory-mcp | `docker-compose.yml` + `src/mcp-servers/forkscout_memory.json` |
-| `4983` | AI SDK DevTools      | Fixed by `@ai-sdk/devtools`                                    |
+| Port   | Service                | Config location                                                |
+| ------ | ---------------------- | -------------------------------------------------------------- |
+| `3200` | Self HTTP API          | `forkscout.config.json` → `self.httpPort`                      |
+| `3978` | Teams webhook          | `TEAMS_PORT` env var                                           |
+| `3979` | Google Chat webhook    | `GOOGLE_CHAT_WEBHOOK_PORT` env var                             |
+| `3980` | LINE webhook           | `LINE_PORT` env var                                            |
+| `3981` | Viber webhook          | `VIBER_PORT` env var                                           |
+| `3982` | Messenger webhook      | `MESSENGER_PORT` env var                                       |
+| `3983` | Instagram webhook      | `INSTAGRAM_PORT` env var                                       |
+| `3984` | SMS (Twilio) webhook   | `SMS_PORT` env var                                             |
+| `3985` | Voice (Twilio) webhook | `VOICE_PORT` env var                                           |
+| `4983` | AI SDK DevTools        | Fixed by `@ai-sdk/devtools`                                    |
+| `8080` | SearXNG (web search)   | `docker-compose.yml`                                           |
+| `3211` | forkscout-memory-mcp   | `docker-compose.yml` + `src/mcp-servers/forkscout_memory.json` |
 
 ### Stop Everything
 
@@ -283,12 +292,30 @@ src/utils/
 - **Orphan recovery on restart** — on startup, agent detects orphaned monitors from previous run, sends a detailed Telegram notification (progress, per-task status, started timestamp) to all owners. Does NOT auto-resume — user must explicitly confirm
 - **`manage_workers`** — resume, cancel, or delete an orphaned batch after restart. `resume` restarts the progress card; `cancel` stops monitor keeping files; `delete` removes everything including task files
 
-### Channels
+### Channels (20 total)
+
+ForkScout supports 20 communication channels. All use the same shared adapter pattern — raw `JSON.stringify(platformPayload)` to the agent. Zero message parsing means future API changes don't break anything.
 
 - **Telegram** — full-featured bot with auth, history, queuing, rate limiting, owner commands
-- **Terminal** — interactive CLI with live token streaming, same agent brain
-- **Voice** (planned) — ElevenLabs TTS+STT
-- **Web** (planned) — HTTP SSE endpoint for browser frontends
+- **WhatsApp** — Baileys (Web WS), QR pairing, media support
+- **Terminal** — interactive CLI with live token streaming
+- **Self (HTTP API)** — REST endpoint for self-sessions, cron jobs, webhooks
+- **Discord** — discord.js gateway, guilds + DMs
+- **Slack** — @slack/bolt Socket Mode
+- **WebChat** — Bun native WebSocket on `/ws`
+- **Email** — IMAP polling + SMTP reply
+- **Matrix** — matrix-bot-sdk with autojoin
+- **Microsoft Teams** — Bot Framework webhook
+- **Google Chat** — Google Workspace API webhook
+- **LINE** — LINE Messaging API webhook
+- **Viber** — Viber Bot API webhook
+- **Facebook Messenger** — Messenger Platform webhook
+- **Instagram DMs** — Instagram Graph API webhook
+- **Twitter/X DMs** — X API v2 polling
+- **Reddit** — snoowrap inbox polling
+- **YouTube Live Chat** — Data API v3 polling
+- **SMS** — Twilio Programmable Messaging webhook
+- **Voice Call** — Twilio Voice STT/TTS webhook
 
 ### Access Control
 
@@ -321,30 +348,39 @@ src/utils/
 
 ## Channels
 
-### Telegram Channel
+ForkScout supports **20 channels** through a shared adapter architecture. Each channel is a thin wrapper (~60-110 lines) that only provides: connect, getRole, sendReply. The shared adapter (`src/channels/adapter.ts`) handles everything else: raw JSON compilation, per-chat queue + abort, rate limiting, history management, streaming agent, and chunked reply.
+
+**Adding a new channel:** Create `src/channels/<name>/index.ts` implementing the `Channel` interface, register it in `src/index.ts`. ~60 lines of code.
+
+### Core Channels
+
+#### Telegram
 
 The production channel. Runs as a long-poll Telegram bot.
 
-**Flow per message:**
+| Config    | Value                                       |
+| --------- | ------------------------------------------- |
+| Env vars  | `TELEGRAM_BOT_TOKEN`                        |
+| Max reply | 4096 chars (HTML)                           |
+| Auth      | `ownerUserIds` + `allowedUserIds` in config |
 
-1. Receive update from Telegram getUpdates API
-2. Check `/start` command (always allowed)
-3. Evaluate role (owner / user / denied) against `ownerUserIds` + `allowedUserIds`
-4. Denied users: save access request, notify owners, return status message
-5. Input length cap check
-6. Rate limit check (owners exempt)
-7. Owner commands routed to `handleOwnerCommand`
-8. Message queued per `chatId` — sequential processing, no race conditions
-9. `runAgent()` called with history, excluded tools, meta context
-10. Response rendered as HTML, split at 4096 chars, sent to Telegram
+**Flow:** getUpdates → role check → rate limit → queue per chatId → `runAgent()` → HTML render → send
 
-**Key design choices:**
+**Key design:** Per-chat `Map<chatId, Promise>` queue, runtime allowlist updates via `/allow`, `capToolResults` → `trimHistory` compression.
 
-- Per-chat `Map<chatId, Promise<void>>` queue ensures messages from the same chat never run concurrently
-- `runtimeAllowedUsers` and `runtimeOwnerUsers` Sets updated immediately on `/allow` — no restart needed
-- Chat history compressed before save: `capToolResults` → `trimHistory`
+#### WhatsApp
 
-### Terminal Channel
+Baileys (Web WebSocket protocol). QR code pairing via dashboard.
+
+| Config   | Value                                           |
+| -------- | ----------------------------------------------- |
+| Env vars | None (QR paired)                                |
+| Auth     | `ownerJids` + `allowedJids`                     |
+| Media    | `analyze_image` tool with `whatsapp_message_id` |
+
+**Flow:** Baileys WS → `compileWhatsAppMessage()` (raw JSON) → adapter → agent → reply
+
+#### Terminal
 
 Development and power-user channel. Start with `bun run cli`.
 
@@ -352,6 +388,76 @@ Development and power-user channel. Start with `bun run cli`.
 - Streams tokens live using `streamAgent()` → `process.stdout.write(chunk)`
 - Same history persistence as Telegram (`chat-store.ts`)
 - Session key: `terminal-<username>`
+
+#### Self (HTTP API)
+
+Embedded REST server for self-sessions, cron jobs, and external triggers.
+
+| Config | Value         |
+| ------ | ------------- |
+| Port   | 3200          |
+| Auth   | Internal only |
+
+### Gateway Channels (WebSocket / Long-Poll — No Public URL Needed)
+
+| Channel     | Library                   | Env Vars                                       | Max Reply    | Notes                    |
+| ----------- | ------------------------- | ---------------------------------------------- | ------------ | ------------------------ |
+| **Discord** | `discord.js`              | `DISCORD_BOT_TOKEN`                            | 2000 chars   | Gateway WS, guilds + DMs |
+| **Slack**   | `@slack/bolt`             | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`           | 40000 chars  | Socket Mode              |
+| **Matrix**  | `matrix-bot-sdk`          | `MATRIX_HOMESERVER_URL`, `MATRIX_ACCESS_TOKEN` | 40000 chars  | Autojoin rooms           |
+| **WebChat** | Bun native WS             | None (uses Self port)                          | —            | `/ws` path, token auth   |
+| **Email**   | `imapflow` + `nodemailer` | `EMAIL_IMAP_HOST/USER/PASS`, `EMAIL_SMTP_*`    | 100000 chars | IMAP poll + SMTP reply   |
+
+### Webhook Channels (Need Public URL)
+
+| Channel | Library / API | Port | Env Vars | Max Reply |
+|---------|---------------|------|----------|-----------||
+| **Teams** | `botbuilder` (Bot Framework) | 3978 | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD` | 28000 chars |
+| **Google Chat** | `googleapis` | 3979 | `GOOGLE_CHAT_SERVICE_ACCOUNT` | 4096 chars |
+| **LINE** | `@line/bot-sdk` | 3980 | `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET` | 5000 chars |
+| **Viber** | Viber REST API | 3981 | `VIBER_AUTH_TOKEN`, `VIBER_WEBHOOK_URL` | 7000 chars |
+| **Messenger** | Messenger Platform | 3982 | `MESSENGER_PAGE_ACCESS_TOKEN`, `MESSENGER_VERIFY_TOKEN` | 2000 chars |
+| **Instagram** | Instagram Graph API | 3983 | `INSTAGRAM_ACCESS_TOKEN`, `INSTAGRAM_VERIFY_TOKEN` | 1000 chars |
+| **SMS** | Twilio | 3984 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` | 1600 chars |
+| **Voice Call** | Twilio Voice STT/TTS | 3985 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | 4096 chars |
+
+### Polling Channels (No Webhook Needed)
+
+| Channel          | Library             | Env Vars                                                | Poll Interval | Notes                            |
+| ---------------- | ------------------- | ------------------------------------------------------- | ------------- | -------------------------------- |
+| **Twitter/X**    | `twitter-api-v2`    | `TWITTER_API_KEY/SECRET`, `TWITTER_ACCESS_TOKEN/SECRET` | 30s           | DM polling, paid API tier        |
+| **Reddit**       | `snoowrap`          | `REDDIT_CLIENT_ID/SECRET/USERNAME/PASSWORD`             | 30s           | Inbox (DMs + mentions + replies) |
+| **YouTube Live** | YouTube Data API v3 | `YOUTUBE_API_KEY`, `YOUTUBE_LIVE_CHAT_ID`               | 5s (API-set)  | Live stream chat only            |
+
+### Channel Auto-Start
+
+All channels auto-start when their env vars are set. If env vars are missing, they skip silently — no errors, no configuration needed.
+
+```typescript
+// From src/index.ts — channels start if configured, skip if not
+const autoChannels = [
+  discordChannel,
+  slackChannel,
+  emailChannel,
+  matrixChannel,
+  teamsChannel,
+  googleChatChannel,
+  lineChannel,
+  viberChannel,
+  messengerChannel,
+  instagramChannel,
+  twitterChannel,
+  redditChannel,
+  youtubeChannel,
+  smsChannel,
+  voiceChannel
+];
+for (const ch of autoChannels) {
+  ch.start(config).catch((err) =>
+    logger.warn(`${ch.name} skipped: ${err.message}`)
+  );
+}
+```
 
 ---
 
@@ -1423,8 +1529,26 @@ Local docs are in `node_modules/ai/docs/` — check there before guessing or fet
 
 ### Channels
 
-- [ ] Voice channel — ElevenLabs TTS+STT over HTTP
-- [ ] Web channel — HTTP SSE endpoint for browser frontend
+- [x] WhatsApp — Baileys Web WS, QR pairing, media support
+- [x] Discord — discord.js gateway
+- [x] Slack — @slack/bolt Socket Mode
+- [x] WebChat — Bun native WebSocket
+- [x] Email — IMAP poll + SMTP reply
+- [x] Matrix — matrix-bot-sdk
+- [x] Microsoft Teams — Bot Framework
+- [x] Google Chat — Google Workspace API
+- [x] LINE — LINE Messaging API
+- [x] Viber — Viber Bot API
+- [x] Facebook Messenger — Messenger Platform
+- [x] Instagram DMs — Instagram Graph API
+- [x] Twitter/X DMs — X API v2
+- [x] Reddit — snoowrap inbox
+- [x] YouTube Live Chat — Data API v3
+- [x] SMS — Twilio Programmable Messaging
+- [x] Voice Call — Twilio Voice STT/TTS
+- [ ] Signal — signal-cli REST wrapper
+- [ ] IRC — irc-framework
+- [ ] Twitch — tmi.js
 
 ### Autonomy (Phase 1 — Foundation)
 
@@ -1447,8 +1571,8 @@ Local docs are in `node_modules/ai/docs/` — check there before guessing or fet
 ### Autonomy (Phase 3 — Expanding Presence)
 
 - [ ] Self-modification with CI/CD pipeline
-- [ ] Phone/SMS channel
-- [ ] Social media presence
+- [x] Phone/SMS channel
+- [x] Social media presence (Twitter/X, Reddit, Instagram, YouTube)
 - [ ] Vision (image understanding)
 
 ### Autonomy (Phase 4 — Physical Existence)
