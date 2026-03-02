@@ -108,7 +108,8 @@ async function start(config: AppConfig): Promise<void> {
     logger.info(`Starting WhatsApp channel (session: ${sessionDir})`);
 
     let retryCount = 0;
-    const MAX_RETRIES_UNAUTHENTICATED = 3;
+    const MAX_RETRIES_UNAUTHENTICATED = 10; // Allow many retries — each gives a QR the user may be scanning
+    let qrShown = false; // Track if QR was ever displayed
 
     // Create auth state ONCE and persist initial creds immediately.
     // This prevents generating new noise keys on every reconnect attempt,
@@ -135,6 +136,8 @@ async function start(config: AppConfig): Promise<void> {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
+                qrShown = true;
+                retryCount = 0; // Reset retry counter — server accepted us enough to give QR
                 logger.info("QR code received — scan with WhatsApp mobile app to pair");
                 await setWhatsAppQR(qr);
             }
@@ -153,17 +156,32 @@ async function start(config: AppConfig): Promise<void> {
                 // If not yet authenticated, limit retries with backoff
                 if (!authState.creds.registered) {
                     retryCount++;
-                    if (retryCount > MAX_RETRIES_UNAUTHENTICATED) {
-                        logger.error(
-                            `Pairing failed after ${MAX_RETRIES_UNAUTHENTICATED} attempts — ` +
-                            `waiting for credentials. Use dashboard or restart to try again.`
-                        );
-                        setWhatsAppDisconnected();
-                        return;
+
+                    // If a QR was shown, this disconnect is NORMAL — WA closes the
+                    // connection after sending QR refs. Just reconnect quickly so the
+                    // user can keep scanning (or get refreshed QR codes).
+                    if (qrShown) {
+                        if (retryCount > MAX_RETRIES_UNAUTHENTICATED) {
+                            logger.error("QR pairing timed out — restart to try again.");
+                            setWhatsAppDisconnected();
+                            return;
+                        }
+                        logger.info(`QR displayed — reconnecting in 2s to keep pairing alive (${retryCount}/${MAX_RETRIES_UNAUTHENTICATED})...`);
+                        await sleep(2000);
+                    } else {
+                        // Never got a QR — server is rejecting us (rate limit)
+                        if (retryCount > 3) {
+                            logger.error(
+                                `Server rejected ${retryCount} pairing attempts without sending QR — ` +
+                                `likely rate-limited. Wait a few minutes and try again.`
+                            );
+                            setWhatsAppDisconnected();
+                            return;
+                        }
+                        const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60_000);
+                        logger.info(`No QR received yet — retrying in ${Math.round(delay / 1000)}s (attempt ${retryCount}/3)...`);
+                        await sleep(delay);
                     }
-                    const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60_000);
-                    logger.info(`Not yet paired — retrying in ${Math.round(delay / 1000)}s (attempt ${retryCount}/${MAX_RETRIES_UNAUTHENTICATED})...`);
-                    await sleep(delay);
                 } else {
                     // Authenticated but disconnected — reconnect quickly
                     retryCount = 0;
