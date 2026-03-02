@@ -110,16 +110,20 @@ async function start(config: AppConfig): Promise<void> {
     let retryCount = 0;
     const MAX_RETRIES_UNAUTHENTICATED = 3;
 
+    // Create auth state ONCE and persist initial creds immediately.
+    // This prevents generating new noise keys on every reconnect attempt,
+    // which WhatsApp interprets as many different devices → rate limiting.
+    const { state: authState, saveCreds } = await useMultiFileAuthState(sessionDir);
+    await saveCreds(); // Persist initial noise/identity keys to disk immediately
+    const hasCredentials = authState.creds.registered;
+
+    if (!hasCredentials) {
+        logger.info("No credentials found — starting QR code pairing flow...");
+    }
+
     const connectSocket = async (): Promise<void> => {
-        const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-        const hasCredentials = existsSync(resolve(sessionDir, "creds.json"));
-
-        if (!hasCredentials) {
-            logger.info("No credentials found — starting QR code pairing flow...");
-        }
-
         const sock = makeWASocket({
-            auth: state,
+            auth: authState,
             browser: Browsers.macOS("ForkScout"),
         });
 
@@ -147,8 +151,7 @@ async function start(config: AppConfig): Promise<void> {
                 }
 
                 // If not yet authenticated, limit retries with backoff
-                const isAuthenticated = existsSync(resolve(sessionDir, "creds.json"));
-                if (!isAuthenticated) {
+                if (!authState.creds.registered) {
                     retryCount++;
                     if (retryCount > MAX_RETRIES_UNAUTHENTICATED) {
                         logger.error(
