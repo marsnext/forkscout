@@ -1,8 +1,11 @@
 // src/channels/whatsapp/index.ts — WhatsApp Baileys channel
 //
-// Supports two pairing methods:
-//   1. QR code (default) — scan from WhatsApp mobile
-//   2. Pairing code — enter 8-digit code on phone (no QR needed, bypasses rate limits)
+// Connection behavior matches WhatsApp Web exactly:
+//   - Unregistered: ONE connection attempt. Server sends QR (refreshes ~5 times
+//     within the same connection). If connection closes → STOP. User clicks
+//     "Connect" again in dashboard (like Chrome's "Click to reload QR").
+//   - Registered (already paired): auto-reconnect on disconnect with backoff.
+//   - restartRequired (515): always auto-reconnect (pairing success flow).
 //
 // Pairing code flow: POST /api/whatsapp/connect { phoneNumber: "1234567890" }
 // QR code flow:      POST /api/whatsapp/connect (no body)
@@ -12,10 +15,10 @@ import type { Channel } from "@/channels/types.ts";
 import { log } from "@/logs/logger.ts";
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
-import { existsSync, mkdirSync } from "fs";
+import { existsSync, mkdirSync, rmSync } from "fs";
 import { resolve } from "path";
 import {
-    setWhatsAppConnected, setWhatsAppQR, setWhatsAppDisconnected,
+    setWhatsAppConnected, setWhatsAppQR, resetWhatsAppState,
     setWhatsAppStarted, setWhatsAppPairingCode, getWhatsAppState,
 } from "@/channels/whatsapp/state.ts";
 import { initAuth } from "@/channels/whatsapp/auth.ts";
@@ -49,6 +52,8 @@ export function startWhatsAppChannel(phoneNumber?: string): { ok: boolean; error
         if (pairingPhoneNumber.length < 7) {
             return { ok: false, error: "Phone number too short. Use full E.164 format without +." };
         }
+    } else {
+        pairingPhoneNumber = undefined;
     }
 
     try {
@@ -65,25 +70,25 @@ async function start(config: AppConfig): Promise<void> {
     const wa = config.whatsapp;
     const sessionDir = resolve(process.cwd(), wa?.sessionDir ?? ".agents/whatsapp-sessions");
 
+    // Clean session dir for fresh pairing (like opening a new incognito tab)
+    if (!hasWhatsAppCredentials()) {
+        if (existsSync(sessionDir)) rmSync(sessionDir, { recursive: true, force: true });
+    }
     if (!existsSync(sessionDir)) mkdirSync(sessionDir, { recursive: true });
 
     initAuth(config);
     setWhatsAppStarted();
     logger.info(`Starting WhatsApp channel (session: ${sessionDir})`);
 
-    let retryCount = 0;
-    const MAX_RETRIES = 10;
-    let qrShown = false;
-
     const connectSocket = async (): Promise<void> => {
-        // Re-read auth state from disk each attempt (picks up creds saved during pairing)
         const { state: authState, saveCreds } = await useMultiFileAuthState(sessionDir);
-        const usePairingCode = !!pairingPhoneNumber && !authState.creds.registered;
+        const isRegistered = authState.creds.registered;
+        const usePairingCode = !!pairingPhoneNumber && !isRegistered;
 
-        if (!authState.creds.registered) {
+        if (!isRegistered) {
             logger.info(usePairingCode
-                ? `No credentials — requesting pairing code for ${pairingPhoneNumber}`
-                : "No credentials — starting QR code pairing flow...",
+                ? `Connecting to WhatsApp (pairing code for ${pairingPhoneNumber})...`
+                : "Connecting to WhatsApp (waiting for QR)...",
             );
         }
 
@@ -99,67 +104,66 @@ async function start(config: AppConfig): Promise<void> {
         sock.ev.on("connection.update", async (update) => {
             const { connection, lastDisconnect, qr } = update;
 
-            // QR received — only relevant when NOT using pairing code
-            if (qr && !usePairingCode) {
-                qrShown = true;
-                retryCount = 0;
-                logger.info("QR code received — scan with WhatsApp mobile app");
-                await setWhatsAppQR(qr);
-            }
-
-            if (connection === "close") {
-                const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
-                logger.warn(`Connection closed (reason: ${reason})`);
-
-                if (reason === DisconnectReason.loggedOut) {
-                    logger.error("Logged out — delete session and re-pair");
-                    setWhatsAppDisconnected();
-                    return;
-                }
-
-                // After successful pairing, WA sends restartRequired (515)
-                if (reason === DisconnectReason.restartRequired) {
-                    logger.info("Restart required (pairing success) — reconnecting with fresh creds...");
-                    retryCount = 0;
-                    qrShown = false;
-                    pairingPhoneNumber = undefined;
-                    await sleep(1000);
-                    connectSocket();
-                    return;
-                }
-
-                if (!authState.creds.registered) {
-                    retryCount++;
-                    if (qrShown || usePairingCode) {
-                        if (retryCount > MAX_RETRIES) {
-                            logger.error("Pairing timed out — restart to try again.");
-                            setWhatsAppDisconnected();
-                            return;
-                        }
-                        logger.info(`Pairing in progress — reconnecting in 2s (${retryCount}/${MAX_RETRIES})...`);
-                        await sleep(2000);
-                    } else {
-                        if (retryCount > 3) {
-                            logger.error("Server rejected attempts without QR — try pairing code with your phone number.");
-                            setWhatsAppDisconnected();
-                            return;
-                        }
-                        const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60_000);
-                        logger.info(`No QR — retrying in ${Math.round(delay / 1000)}s (${retryCount}/3)...`);
-                        await sleep(delay);
+            // Baileys emits `qr` multiple times (refreshes every ~20s, up to ~5 times)
+            // within the SAME connection — just like WhatsApp Web.
+            if (qr) {
+                if (usePairingCode) {
+                    try {
+                        const code = await sock.requestPairingCode(pairingPhoneNumber!);
+                        logger.info(`✓ Pairing code: ${code} — enter on your phone`);
+                        setWhatsAppPairingCode(code);
+                    } catch (err: any) {
+                        logger.error(`✗ Failed to request pairing code: ${err.message}`);
                     }
                 } else {
-                    retryCount = 0;
-                    logger.info("Reconnecting in 3s...");
-                    await sleep(3000);
+                    logger.info("QR code received — scan with WhatsApp");
+                    await setWhatsAppQR(qr);
                 }
-                connectSocket();
-            } else if (connection === "open") {
-                retryCount = 0;
-                pairingPhoneNumber = undefined;
-                logger.info("Connected to WhatsApp!");
-                setWhatsAppConnected(sock.user?.id ?? "");
             }
+
+            if (connection === "open") {
+                pairingPhoneNumber = undefined;
+                logger.info("✓ Connected to WhatsApp!");
+                setWhatsAppConnected(sock.user?.id ?? "");
+                return;
+            }
+
+            if (connection !== "close") return;
+
+            const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
+            logger.warn(`Connection closed (reason: ${reason})`);
+
+            // ── restartRequired (515) — pairing succeeded, auto-reconnect ──
+            if (reason === DisconnectReason.restartRequired) {
+                logger.info("Restart required (pairing success) — reconnecting...");
+                pairingPhoneNumber = undefined;
+                await sleep(1000);
+                connectSocket();
+                return;
+            }
+
+            // ── loggedOut — stop, user must re-pair ────────────────────────
+            if (reason === DisconnectReason.loggedOut) {
+                logger.error("Logged out — delete session and re-pair.");
+                resetWhatsAppState();
+                return;
+            }
+
+            // ── UNREGISTERED: single attempt, no auto-retry ────────────────
+            // Just like WhatsApp Web: if QR expired or server rejected us,
+            // stop and let the user click Connect again.
+            if (!isRegistered) {
+                logger.info("Connection closed during pairing — click Connect to try again.");
+                resetWhatsAppState(); // sets started=false so Connect button reappears
+                return;
+            }
+
+            // ── REGISTERED: auto-reconnect with backoff ────────────────────
+            const delay = Math.min(3000 * Math.pow(1.5, Math.min(retryCount, 8)), 60_000);
+            retryCount++;
+            logger.info(`Reconnecting in ${Math.round(delay / 1000)}s (attempt ${retryCount})...`);
+            await sleep(delay);
+            connectSocket();
         });
 
         // ── Incoming messages ─────────────────────────────────────────────
@@ -167,19 +171,9 @@ async function start(config: AppConfig): Promise<void> {
             if (type !== "notify") return;
             processIncomingMessages(sock, messages);
         });
-
-        // ── Request pairing code AFTER event handlers are registered ──────
-        if (usePairingCode) {
-            try {
-                const code = await sock.requestPairingCode(pairingPhoneNumber!);
-                logger.info(`Pairing code: ${code} — enter this on your phone`);
-                setWhatsAppPairingCode(code);
-            } catch (err: any) {
-                logger.error(`Failed to request pairing code: ${err.message}`);
-            }
-        }
     };
 
+    let retryCount = 0;
     await connectSocket();
     await new Promise(() => { }); // Keep running forever
 }

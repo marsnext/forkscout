@@ -49,6 +49,15 @@ export function setWhatsAppDisconnected(): void {
     state.pairingCode = "";
 }
 
+/** Full reset — pairing failed or session deleted. User can click Connect again. */
+export function resetWhatsAppState(): void {
+    state.connected = false;
+    state.started = false;
+    state.qr = "";
+    state.jid = "";
+    state.pairingCode = "";
+}
+
 export function setWhatsAppPairingCode(code: string): void {
     state.pairingCode = code;
     state.connected = false;
