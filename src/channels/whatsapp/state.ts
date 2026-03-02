@@ -10,7 +10,6 @@ export interface WhatsAppState {
     started: boolean; // true once the channel has been launched (even if not yet connected)
     qr: string; // data:image/png;base64,... QR image (empty if connected or not started)
     jid: string; // own JID once connected
-    pairingCode: string; // 8-digit pairing code (empty if not in pairing code flow)
 }
 
 const state: WhatsAppState = {
@@ -18,7 +17,6 @@ const state: WhatsAppState = {
     started: false,
     qr: "",
     jid: "",
-    pairingCode: "",
 };
 
 export function setWhatsAppStarted(): void {
@@ -30,7 +28,6 @@ export function setWhatsAppConnected(jid: string): void {
     state.started = true;
     state.qr = "";
     state.jid = jid;
-    state.pairingCode = "";
 }
 
 export async function setWhatsAppQR(rawQr: string): Promise<void> {
@@ -46,7 +43,6 @@ export async function setWhatsAppQR(rawQr: string): Promise<void> {
 export function setWhatsAppDisconnected(): void {
     state.connected = false;
     state.qr = "";
-    state.pairingCode = "";
 }
 
 /** Full reset — pairing failed or session deleted. User can click Connect again. */
@@ -55,12 +51,6 @@ export function resetWhatsAppState(): void {
     state.started = false;
     state.qr = "";
     state.jid = "";
-    state.pairingCode = "";
-}
-
-export function setWhatsAppPairingCode(code: string): void {
-    state.pairingCode = code;
-    state.connected = false;
 }
 
 export function getWhatsAppState(): WhatsAppState {

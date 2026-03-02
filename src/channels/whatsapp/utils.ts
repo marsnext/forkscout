@@ -6,15 +6,6 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Strip non-digit characters from a phone number.
- * Result is E.164 format without the leading +.
- * Example: "+1 (234) 567-8901" → "12345678901"
- */
-export function sanitizePhoneNumber(input: string): string {
-    return input.replace(/[^0-9]/g, "");
-}
-
-/**
  * Split text into chunks at paragraph or sentence boundaries.
  * Used to stay under WhatsApp's per-message character limits.
  */

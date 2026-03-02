@@ -1,6 +1,6 @@
 // src/channels/whatsapp/index.ts — WhatsApp Baileys channel
 // Unregistered: single attempt, no retry. Registered: auto-reconnect.
-// Pairing code: POST /api/whatsapp/connect { phoneNumber }  |  QR: POST (no body)
+// QR pairing: POST /api/whatsapp/connect
 
 import { getConfig, type AppConfig } from "@/config.ts";
 import type { Channel } from "@/channels/types.ts";
@@ -15,16 +15,13 @@ import { resolve } from "path";
 import { makeSilentLogger } from "@/channels/whatsapp/baileys-logger.ts";
 import {
     setWhatsAppConnected, setWhatsAppQR, resetWhatsAppState,
-    setWhatsAppStarted, setWhatsAppPairingCode, getWhatsAppState,
+    setWhatsAppStarted, getWhatsAppState,
 } from "@/channels/whatsapp/state.ts";
 import { initAuth } from "@/channels/whatsapp/auth.ts";
 import { processIncomingMessages } from "@/channels/whatsapp/handle-message.ts";
-import { sleep, sanitizePhoneNumber } from "@/channels/whatsapp/utils.ts";
+import { sleep } from "@/channels/whatsapp/utils.ts";
 
 const logger = log("whatsapp");
-
-// Module-level phone number — set by startWhatsAppChannel when user wants pairing code
-let pairingPhoneNumber: string | undefined;
 
 export default {
     name: "whatsapp",
@@ -38,19 +35,10 @@ export function hasWhatsAppCredentials(): boolean {
     return existsSync(resolve(sessionDir, "creds.json"));
 }
 
-/** Start the WhatsApp channel. Pass phoneNumber for pairing code flow. Safe to call multiple times. */
-export function startWhatsAppChannel(phoneNumber?: string): { ok: boolean; error?: string } {
+/** Start the WhatsApp channel. Safe to call multiple times. */
+export function startWhatsAppChannel(): { ok: boolean; error?: string } {
     const state = getWhatsAppState();
     if (state.started) return { ok: true };
-
-    if (phoneNumber) {
-        pairingPhoneNumber = sanitizePhoneNumber(phoneNumber);
-        if (pairingPhoneNumber.length < 7) {
-            return { ok: false, error: "Phone number too short. Use full E.164 format without +." };
-        }
-    } else {
-        pairingPhoneNumber = undefined;
-    }
 
     try {
         const config = getConfig();
@@ -84,13 +72,9 @@ async function start(config: AppConfig): Promise<void> {
     const connectSocket = async (): Promise<void> => {
         const { state: authState, saveCreds } = await useMultiFileAuthState(sessionDir);
         const isRegistered = authState.creds.registered;
-        const usePairingCode = !!pairingPhoneNumber && !isRegistered;
 
         if (!isRegistered) {
-            logger.info(usePairingCode
-                ? `Connecting to WhatsApp (pairing code for ${pairingPhoneNumber})...`
-                : "Connecting to WhatsApp (waiting for QR)...",
-            );
+            logger.info("Connecting to WhatsApp (waiting for QR)...");
         }
 
         const baileysLogger = makeSilentLogger();
@@ -123,22 +107,11 @@ async function start(config: AppConfig): Promise<void> {
             // Baileys emits `qr` multiple times (refreshes every ~20s, up to ~5 times)
             // within the SAME connection — just like WhatsApp Web.
             if (qr) {
-                if (usePairingCode) {
-                    try {
-                        const code = await sock.requestPairingCode(pairingPhoneNumber!);
-                        logger.info(`✓ Pairing code: ${code} — enter on your phone`);
-                        setWhatsAppPairingCode(code);
-                    } catch (err: any) {
-                        logger.error(`✗ Failed to request pairing code: ${err.message}`);
-                    }
-                } else {
-                    logger.info("QR code received — scan with WhatsApp");
-                    await setWhatsAppQR(qr);
-                }
+                logger.info("QR code received — scan with WhatsApp");
+                await setWhatsAppQR(qr);
             }
 
             if (connection === "open") {
-                pairingPhoneNumber = undefined;
                 logger.info("✓ Connected to WhatsApp!");
                 setWhatsAppConnected(sock.user?.id ?? "");
                 return;
@@ -152,7 +125,6 @@ async function start(config: AppConfig): Promise<void> {
             // ── restartRequired (515) — pairing succeeded, auto-reconnect ──
             if (reason === DisconnectReason.restartRequired) {
                 logger.info("Restart required (pairing success) — reconnecting...");
-                pairingPhoneNumber = undefined;
                 await sleep(1000);
                 connectSocket();
                 return;

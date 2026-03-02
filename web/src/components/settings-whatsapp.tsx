@@ -19,7 +19,7 @@ import {
     Wifi,
     WifiOff,
 } from "lucide-react";
-import { PairingCodeDisplay, QrCodeDisplay, ConnectOptions } from "@web/components/whatsapp-connection-ui";
+import { QrCodeDisplay, ConnectButton } from "@web/components/whatsapp-connection-ui";
 
 type Config = Record<string, any>;
 
@@ -34,7 +34,6 @@ interface WhatsAppStatus {
     started?: boolean;
     qr?: string;
     jid?: string;
-    pairingCode?: string;
 }
 
 export default function WhatsAppSettings({ config, updateField, get }: Props) {
@@ -44,7 +43,6 @@ export default function WhatsAppSettings({ config, updateField, get }: Props) {
     const [connecting, setConnecting] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [phoneNumber, setPhoneNumber] = useState("");
 
     const ownerJids: string[] = (get(["whatsapp", "ownerJids"]) as string[]) ?? [];
     const allowedJids: string[] = (get(["whatsapp", "allowedJids"]) as string[]) ?? [];
@@ -85,27 +83,19 @@ export default function WhatsAppSettings({ config, updateField, get }: Props) {
         }
     };
 
-    const handleConnect = async (usePairingCode: boolean) => {
+    const handleConnect = async () => {
         if (!token) return;
-        if (usePairingCode && !phoneNumber.trim()) return;
         setConnecting(true);
         try {
-            const body = usePairingCode
-                ? JSON.stringify({ phoneNumber: phoneNumber.trim() })
-                : undefined;
             await fetch(`${AGENT_URL}/api/whatsapp/connect`, {
                 method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    ...(body ? { "Content-Type": "application/json" } : {}),
-                },
-                body,
+                headers: { Authorization: `Bearer ${token}` },
             });
-            // Poll quickly to catch the QR or pairing code
+            // Poll quickly to catch the QR
             for (let i = 0; i < 8; i++) {
                 await new Promise((r) => setTimeout(r, 2000));
                 await fetchStatus();
-                if (status?.qr || status?.connected || status?.pairingCode) break;
+                if (status?.qr || status?.connected) break;
             }
         } catch { /* ignore */ } finally {
             setConnecting(false);
@@ -140,19 +130,14 @@ export default function WhatsAppSettings({ config, updateField, get }: Props) {
                             )}
                         </div>
                     </div>
-                ) : status?.pairingCode ? (
-                    /* ── Pairing Code Display ────────────────── */
-                    <PairingCodeDisplay code={status.pairingCode} />
                 ) : status?.qr ? (
                     /* ── QR Code Display ──────────────────────── */
                     <QrCodeDisplay qr={status.qr} />
                 ) : (
-                    /* ── Not Connected — show connect options ── */
-                    <ConnectOptions
+                    /* ── Not Connected — show connect button ──── */
+                    <ConnectButton
                         status={status}
                         connecting={connecting}
-                        phoneNumber={phoneNumber}
-                        onPhoneChange={setPhoneNumber}
                         onConnect={handleConnect}
                     />
                 )}
