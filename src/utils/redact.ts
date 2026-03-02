@@ -114,8 +114,16 @@ const RULES: RedactionRule[] = [
     // ── Environment variable assignments with sensitive names ───
     {
         label: "Env var assignment",
-        pattern: /\b([\w]*(?:KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|PRIVATE)[\w]*)\s*=\s*['"]?[^\s'"]{8,}['"]?/gi,
+        pattern: /\b([\w]*(?:KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL|PRIVATE|DATABASE_URL|REDIS_URL|MONGO_URI|AMQP_URL|CONNECTION_STRING)[\w]*)\s*=\s*['"]?[^\s'"]{8,}['"]?/gi,
         replacement: "$1=[REDACTED]",
+    },
+
+    // ── Connection strings with embedded credentials ────────────
+    // postgresql://user:pass@host, mongodb+srv://user:pass@host, redis://:pass@host, amqp://user:pass@host
+    {
+        label: "Connection string",
+        pattern: /\b(postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqps?|mssql|mariadb):\/\/[^\s"',}{)]+@[^\s"',}{)]+/gi,
+        replacement: "[REDACTED:connection-string]",
     },
 
     // ── Long hex strings (64+ chars — likely SHA-256, encryption keys) ──
