@@ -14,23 +14,16 @@ export function CtaSection() {
         <section id="get-started" className="relative mx-auto max-w-6xl px-6 py-24">
             <div className="mb-20 h-px bg-linear-to-r from-transparent via-purple-500/20 to-transparent" />
 
-            {/* Animated gradient border card */}
+            {/* CTA card */}
             <div className="relative mx-auto max-w-2xl">
-                {/* Rotating gradient border */}
-                <div className="absolute -inset-[1px] rounded-3xl bg-linear-to-r from-purple-500/50 via-cyan-500/50 to-pink-500/50 opacity-60 blur-sm transition-opacity duration-500 hover:opacity-100" />
-                <div
-                    className="absolute -inset-[1px] animate-spin rounded-3xl [animation-duration:8s]"
-                    style={{ background: "conic-gradient(from 0deg, #a855f7, #22d3ee, #ec4899, #a855f7)" }}
-                />
-
-                <div className="relative flex flex-col items-center gap-6 rounded-3xl bg-background/95 px-8 py-12 text-center backdrop-blur-xl sm:px-12">
-                    <motion.div
+                <div className="relative flex flex-col items-center gap-6 rounded-3xl border border-border/50 bg-card/80 px-8 py-12 text-center sm:px-12">
+                    {/* <motion.div
                         animate={{ y: [0, -8, 0] }}
                         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                         className="flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-purple-500/20 to-cyan-500/20"
                     >
                         <span className="text-3xl">🚀</span>
-                    </motion.div>
+                    </motion.div> */}
 
                     <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                         Ready to deploy{" "}
@@ -52,7 +45,7 @@ export function CtaSection() {
                         </motion.div>
                         <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                             <Button size="lg" variant="outline" className="gap-2 border-border/60 px-8 hover:border-purple-500/40 hover:bg-purple-500/5" asChild>
-                                <a href="https://github.com/marsnext/forkscout-frontend" target="_blank" rel="noopener noreferrer">
+                                <a href="https://github.com/marsnext/forkscout" target="_blank" rel="noopener noreferrer">
                                     <Github className="h-4 w-4" /> View Source
                                 </a>
                             </Button>
