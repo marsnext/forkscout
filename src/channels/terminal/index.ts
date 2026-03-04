@@ -6,7 +6,7 @@ import type { ModelMessage } from "ai";
 import type { AppConfig } from "@/config.ts";
 import type { Channel } from "@/channels/types.ts";
 import { streamAgent } from "@/agent/index.ts";
-import { LLMError } from "@/llm/retry.ts";
+import { LLMError } from "@/llm/index.ts";
 import { log } from "@/logs/logger.ts";
 import { loadHistory, saveHistory, clearHistory } from "@/channels/chat-store.ts";
 

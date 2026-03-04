@@ -11,6 +11,7 @@
 
 import { readdirSync, readFileSync, statSync } from "fs";
 import { resolve } from "path";
+import type { AppConfig } from "@/config.ts";
 import { log } from "@/logs/logger.ts";
 
 const logger = log("skills-discover");
@@ -98,4 +99,22 @@ export function loadSkillBody(skillPath: string): string | null {
     } catch {
         return null;
     }
+}
+
+// ── Public API (merged from skills/index.ts) ──────────────────────────────────
+
+const DEFAULT_SKILL_DIRS = [
+    ".agents/skills",
+    "src/skills/built-in",
+];
+
+/** Resolve skill directories from config (or fall back to defaults). */
+export function getSkillDirs(config: AppConfig): string[] {
+    const dirs = config.skills?.dirs ?? DEFAULT_SKILL_DIRS;
+    return dirs.map((d) => resolve(process.cwd(), d));
+}
+
+/** Discover all skills available to the agent. Called once per agent run. */
+export function getSkills(config: AppConfig): SkillMetadata[] {
+    return discoverSkills(getSkillDirs(config));
 }

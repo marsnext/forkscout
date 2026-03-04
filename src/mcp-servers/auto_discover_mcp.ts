@@ -11,7 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { tool } from "ai";
 import { z } from "zod";
-import type { Tool } from "@/tools/index.ts";
+import type { Tool } from "@/tools/auto_discover_tools.ts";
 import { getConfig } from "@/config.ts";
 import { log } from "@/logs/logger.ts";
 import { redactOutput } from "@/utils/redact.ts";

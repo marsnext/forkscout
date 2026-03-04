@@ -1,6 +1,6 @@
 // src/tools/read_folder_standards.ts
-// Reads the README.md for a src/ subfolder.
-// Call this before modifying ANY file in that folder.
+// Reads README.md for one or more src/ subfolders.
+// Call this before modifying ANY file in those folders.
 import { tool } from "ai";
 import { z } from "zod";
 import { readFileSync } from "fs";
@@ -9,41 +9,35 @@ import { fileURLToPath } from "url";
 
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-export const IS_BOOTSTRAP_TOOL = true;
+
+function readFolderStandard(folder: string) {
+    const readmePath = resolve(srcDir, folder, "README.md");
+    try {
+        const content = readFileSync(readmePath, "utf-8");
+        return { success: true as const, folder, content };
+    } catch {
+        try { readFileSync(resolve(srcDir, folder), "utf-8"); } catch (e: any) {
+            if (e.code === "ENOENT") {
+                return { success: false as const, folder, error: `Folder src/${folder}/ does not exist. Create it and write README.md before adding any code.` };
+            }
+        }
+        return { success: false as const, folder, error: `No README.md found in src/${folder}/. Create it before editing this folder.` };
+    }
+}
 
 export const read_folder_standard_tools = tool({
     description:
-        "Read the coding standards and contracts for a src/ subfolder before modifying it. " +
+        "Read the coding standards and contracts for one or more src/ subfolders before modifying them. " +
         "ALWAYS call this before editing or creating files in any src/ subfolder. " +
-        "Returns the folder's README.md which documents: purpose, file format, rules, and current contents.",
+        "Returns each folder's README.md documenting: purpose, file format, rules, and current contents.",
     inputSchema: z.object({
-        folder: z
-            .string()
-            .describe(
-                "Folder name under src/ — e.g. 'tools', 'channels', 'providers', 'agent', 'llm', 'utils', 'logs', 'mcp-servers'"
-            ),
+        folders: z.array(
+            z.string().describe("Folder name under src/ \u2014 e.g. 'tools', 'channels', 'providers', 'agent', 'llm', 'utils', 'logs', 'mcp-servers'")
+        ).min(1).max(10).describe("List of src/ subfolder names to read standards for"),
     }),
     execute: async (input) => {
-        const readmePath = resolve(srcDir, input.folder, "README.md");
-        try {
-            const content = readFileSync(readmePath, "utf-8");
-            return { success: true, folder: input.folder, content };
-        } catch {
-            // Check if the folder itself exists
-            try {
-                readFileSync(resolve(srcDir, input.folder), "utf-8");
-            } catch (e: any) {
-                if (e.code === "ENOENT") {
-                    return {
-                        success: false,
-                        error: `Folder src/${input.folder}/ does not exist. Create it and write README.md before adding any code.`,
-                    };
-                }
-            }
-            return {
-                success: false,
-                error: `No README.md found in src/${input.folder}/. Create it before editing this folder.`,
-            };
-        }
+        const results = input.folders.map(readFolderStandard);
+        const failed = results.filter((r) => !r.success);
+        return { success: failed.length === 0, results, failed_count: failed.length };
     },
 });

@@ -1,8 +1,8 @@
 // src/tools/find_tools.ts
-// Tool RAG — search over non-bootstrap tools by keyword.
+// Tool RAG — search over on-demand tools in .agents/tools/ by keyword.
 //
-// The LLM is only given bootstrap tools + find_tools + call_tool schemas.
-// All other tools are hidden until the agent explicitly searches for them.
+// The LLM is only given bootstrap tools (src/tools/) at step 0.
+// All other tools live in .agents/tools/ and are hidden until explicitly searched.
 // This saves ~2500-3000 tokens per turn when tools aren't needed.
 //
 // Usage pattern:
@@ -11,17 +11,12 @@
 
 import { tool } from "ai";
 import { z } from "zod";
-import { readdirSync } from "fs";
+import { readdirSync, existsSync } from "fs";
 import { resolve } from "path";
 
-export const IS_BOOTSTRAP_TOOL = true;
+const SKIP_FILES = new Set(["index.ts", "auto_discover_tools.ts", "find_tools.ts"]);
 
-const SKIP_FILES = new Set([
-    "index.ts",
-    "auto_discover_tools.ts",
-    "find_tools.ts",
-    "call_tool.ts",
-]);
+const AGENTS_TOOLS_DIR = resolve(process.cwd(), ".agents", "tools");
 
 interface ToolEntry {
     name: string;
@@ -32,21 +27,22 @@ interface ToolEntry {
 /** Lazy-loaded cache — built once, reused across calls */
 let _cache: ToolEntry[] | null = null;
 
-async function loadNonBootstrapTools(): Promise<ToolEntry[]> {
+async function loadOnDemandTools(): Promise<ToolEntry[]> {
     if (_cache) return _cache;
 
-    const toolsDir = import.meta.dir;
-    const files = readdirSync(toolsDir).filter(
+    if (!existsSync(AGENTS_TOOLS_DIR)) {
+        _cache = [];
+        return _cache;
+    }
+
+    const files = readdirSync(AGENTS_TOOLS_DIR).filter(
         (f) => f.endsWith(".ts") && !SKIP_FILES.has(f)
     );
 
     const entries: ToolEntry[] = [];
 
     for (const file of files) {
-        const mod = (await import(resolve(toolsDir, file))) as Record<string, unknown>;
-
-        // Only index non-bootstrap tools
-        if (mod.IS_BOOTSTRAP_TOOL === true) continue;
+        const mod = (await import(resolve(AGENTS_TOOLS_DIR, file))) as Record<string, unknown>;
 
         for (const [key, value] of Object.entries(mod)) {
             if (key === "IS_BOOTSTRAP_TOOL") continue;
@@ -59,12 +55,7 @@ async function loadNonBootstrapTools(): Promise<ToolEntry[]> {
 
             const t = value as { description: string; inputSchema: any };
             const params = extractParamNames(t.inputSchema);
-
-            entries.push({
-                name: key,
-                description: String(t.description),
-                params,
-            });
+            entries.push({ name: key, description: String(t.description), params });
         }
     }
 
@@ -102,7 +93,7 @@ export const find_tools = tool({
         ),
     }),
     execute: async (input) => {
-        const tools = await loadNonBootstrapTools();
+        const tools = await loadOnDemandTools();
 
         if (tools.length === 0) {
             return { success: true, results: [], message: "No non-bootstrap tools found." };

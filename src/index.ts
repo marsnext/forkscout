@@ -41,6 +41,10 @@ if (vaultCount > 0) {
 }
 
 const config = loadConfig();
+
+// Pre-register custom providers (ollama, lmstudio, etc.) from config
+import { initProviders } from "@/providers/index.ts";
+initProviders(config.llm);
 const channelName = process.argv.includes("--cli")
     ? "terminal"
     : process.argv.includes("--self")

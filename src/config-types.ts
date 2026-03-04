@@ -18,9 +18,18 @@ export interface ModelTiers {
     powerful: string;
     vision?: string;
     summarizer?: string;
-    browser?: string;
-    transcriber?: string;
-    tts?: string;
+}
+
+/** Provider config: model tiers + optional custom-endpoint meta-fields.
+ *  Known providers (openrouter, openai, etc.) ignore the _ fields.
+ *  Custom providers MUST set _type to use the factory pattern. */
+export interface ProviderConfig extends ModelTiers {
+    /** Factory type — currently only "openai_compatible" */
+    _type?: "openai_compatible";
+    /** API base URL, e.g. "http://localhost:11434/v1" */
+    _baseURL?: string;
+    /** API key — prefix with $ to read from env, e.g. "$MY_KEY" */
+    _apiKey?: string;
 }
 
 export type ModelTier = "fast" | "balanced" | "powerful";
@@ -33,7 +42,7 @@ export interface LLMConfig {
     reasoningTag?: string;
     llmSummarizeMaxTokens?: number;
     toolResultAutoCompressWords?: number;
-    providers: { [provider: string]: ModelTiers };
+    providers: { [provider: string]: ProviderConfig };
 }
 
 export interface BrowserAgentConfig {
@@ -86,5 +95,20 @@ export interface AppConfig {
     embeddings?: {
         enabled: boolean; provider: "openrouter" | "google"; model: string;
         topK: number; chunkMaxTokens: number;
+    };
+    imageGeneration?: {
+        enabled: boolean;
+        provider: string;
+        model: string;
+        defaultSize: string;
+        defaultQuality: "standard" | "hd";
+        defaultStyle?: "natural" | "vivid";
+    };
+    videoGeneration?: {
+        enabled: boolean;
+        provider: string;
+        model: string;
+        defaultDuration?: number;
+        defaultAspectRatio?: string;
     };
 }

@@ -1,11 +1,10 @@
 // src/tools/auto_discover_tools.ts
 // Scans src/tools/ AND .agents/tools/ directories, imports all tool files, and builds tool sets.
 // A tool file must export:
-//   - IS_BOOTSTRAP_TOOL: boolean  — whether available at agent step 0
-//   - A named const matching the file name  — the tool object itself
+//   - A named const — the tool object itself
 //
-// Bootstrap tools live in src/tools/ (version-controlled).
-// Non-bootstrap (extended) tools live in .agents/tools/ (gitignored, runtime-managed).
+// Bootstrap tools live in src/tools/ (version-controlled) — ALL are bootstrap.
+// On-demand tools live in .agents/tools/ (gitignored, runtime-managed) — NONE are bootstrap.
 
 import { readdirSync, existsSync } from "fs";
 import { resolve } from "path";
@@ -19,7 +18,7 @@ const SKIP_FILES = new Set(["index.ts", "auto_discover_tools.ts"]);
 export interface DiscoveryResult {
     /** All tools combined — passed to the full agent tool loop */
     allTools: Record<string, Tool>;
-    /** Only tools with IS_BOOTSTRAP_TOOL = true — available at step 0 */
+    /** Tools from src/tools/ — always available at step 0 */
     bootstrapTools: Record<string, Tool>;
 }
 
@@ -44,12 +43,14 @@ function wrapToolWithRedaction(tool: Tool): Tool {
 }
 
 /**
- * Scan a single directory for tool files and register them.
+ * Scan a directory for tool files and register them.
+ * @param isBootstrapDir — if true, all tools in this dir are added to bootstrapTools too.
  */
 async function scanDirectory(
     dir: string,
     allTools: Record<string, Tool>,
-    bootstrapTools: Record<string, Tool>
+    bootstrapTools: Record<string, Tool>,
+    isBootstrapDir: boolean
 ): Promise<void> {
     if (!existsSync(dir)) return;
 
@@ -59,11 +60,7 @@ async function scanDirectory(
 
     for (const file of files) {
         try {
-            const mod = (await import(resolve(dir, file))) as Record<
-                string,
-                unknown
-            >;
-            const isBootstrap = mod.IS_BOOTSTRAP_TOOL === true;
+            const mod = (await import(resolve(dir, file))) as Record<string, unknown>;
 
             for (const [key, value] of Object.entries(mod)) {
                 if (key === "IS_BOOTSTRAP_TOOL") continue;
@@ -72,12 +69,9 @@ async function scanDirectory(
                     value !== null &&
                     "inputSchema" in value
                 ) {
-                    // Wrap execute to redact sensitive data from ALL tool outputs
                     const wrapped = wrapToolWithRedaction(value as Tool);
                     allTools[key] = wrapped;
-                    if (isBootstrap) {
-                        bootstrapTools[key] = wrapped;
-                    }
+                    if (isBootstrapDir) bootstrapTools[key] = wrapped;
                 }
             }
         } catch (err) {
@@ -90,13 +84,13 @@ export async function discoverTools(): Promise<DiscoveryResult> {
     const allTools: Record<string, Tool> = {};
     const bootstrapTools: Record<string, Tool> = {};
 
-    // 1. Scan bootstrap tools from src/tools/ (version-controlled)
+    // 1. src/tools/ — all are bootstrap (version-controlled)
     const coreDir = import.meta.dir;
-    await scanDirectory(coreDir, allTools, bootstrapTools);
+    await scanDirectory(coreDir, allTools, bootstrapTools, true);
 
-    // 2. Scan extended tools from .agents/tools/ (runtime-managed, gitignored)
+    // 2. .agents/tools/ — all are on-demand (runtime-managed, gitignored)
     const extendedDir = resolve(process.cwd(), ".agents", "tools");
-    await scanDirectory(extendedDir, allTools, bootstrapTools);
+    await scanDirectory(extendedDir, allTools, bootstrapTools, false);
 
     logger.info(
         `Discovered ${Object.keys(allTools).length} tools (${Object.keys(bootstrapTools).length} bootstrap, ${Object.keys(allTools).length - Object.keys(bootstrapTools).length} extended)`
@@ -104,3 +98,6 @@ export async function discoverTools(): Promise<DiscoveryResult> {
 
     return { allTools, bootstrapTools };
 }
+
+// Re-export Tool type so consumers only need one import path
+export type { Tool } from "ai";

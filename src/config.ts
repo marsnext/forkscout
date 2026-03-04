@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 
 // Re-export all types so existing imports (`from "@/config.ts"`) keep working
 export type {
-    ModelTiers, ModelTier, LLMConfig, BrowserAgentConfig, AgentConfig,
+    ModelTiers, ModelTier, LLMConfig, ProviderConfig, BrowserAgentConfig, AgentConfig,
     SelfJobConfig, ToolDefaults, N8nConfig, AppConfig,
     ChannelDefaults, ChannelsConfig,
     TelegramChannelConfig, TerminalChannelConfig, SelfChannelConfig,

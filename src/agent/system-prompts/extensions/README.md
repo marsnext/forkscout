@@ -36,13 +36,20 @@ The agent calls `read_file` with that path when it needs the instructions.
 
 ## Current Files
 
-| File              | Topic                                                                                        | Referenced from identity.ts |
-| ----------------- | -------------------------------------------------------------------------------------------- | --------------------------- |
-| `file-editing.md` | File editing workflow: folder standards, checkpoint commit, typecheck, verify startup        | Line ~121                   |
-| `error-repair.md` | Error diagnosis & self-repair: repair loop, all failure types, log commands                  | Line ~124                   |
-| `memory.md`       | Memory (forkscout-mem\_\_ MCP): session startup, what to save, quality rules, task lifecycle | Line ~127                   |
-| `role-admin.md`   | Per-turn instructions for `[ADMIN]` messages: allowed capabilities, forbidden actions, tone  | Rules section               |
-| `role-user.md`    | Per-turn instructions for `[USER]` messages: allowed capabilities, forbidden actions, tone   | Rules section               |
+| File                          | Topic                                                                                       | In identity.ts? |
+| ----------------------------- | ------------------------------------------------------------------------------------------- | --------------- |
+| `file-editing.md`             | File editing workflow: folder standards, checkpoint commit, typecheck, verify startup       | ✅              |
+| `error-repair.md`             | Error diagnosis & self-repair: repair loop, all failure types, log commands                 | ✅              |
+| `error-recovery-priority.md`  | Error classification: fatal vs self-recoverable, recovery protocol, escalation              | ✅              |
+| `tool-error-recovery.md`      | Tool failure protocol: diagnose → fix → typecheck → retry                                   | ✅              |
+| `memory.md`                   | Memory (forkscout-mem MCP): session startup, what to save, quality rules, task lifecycle    | ✅              |
+| `task-orchestration.md`       | Spawning self-sessions, parallel workers, sequential chains, notifying users                | ✅              |
+| `role-definition.md`          | Agent vs assistant, autonomy spectrum, self-modification rules                              | ✅              |
+| `security-and-trust.md`       | Trust levels, secret handling, security rules beyond the vault                              | ✅              |
+| `state-persistence.md`        | State persistence, saving progress across restarts                                          | ✅              |
+| `performance-optimization.md` | Token budgeting, latency reduction, performance patterns                                    | ✅              |
+| `role-admin.md`               | Per-turn instructions for `[ADMIN]` messages: allowed capabilities, forbidden actions, tone | Role extension  |
+| `role-user.md`                | Per-turn instructions for `[USER]` messages: allowed capabilities, forbidden actions, tone  | Role extension  |
 
 ---
 
