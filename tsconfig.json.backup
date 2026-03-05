@@ -11,7 +11,7 @@
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*", ".agents/*"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["src/**/*", ".agents/**/*"],
