@@ -7,6 +7,7 @@ import { getProvider } from "@/providers/index.ts";
 import { discoverTools } from "@/tools/auto_discover_tools.ts";
 import { discoverMcpTools } from "@/mcp-servers/auto_discover_mcp.ts";
 import { buildIdentity, type IdentityContext } from "@/agent/system-prompts/identity.ts";
+import { buildRelevantExtensionsBlock } from "@/agent/system-prompts/select-extensions.ts";
 import { getSkills } from "@/skills/auto_discover_skills.ts";
 import { sanitizeForPrompt } from "@/utils/sanitize-messages.ts";
 import { sanitizeUserMessage } from "@/utils/secrets.ts";
@@ -84,9 +85,13 @@ export async function buildAgentParams(config: AppConfig, options: AgentRunOptio
         }) as typeof baseModel;
     }
 
-    const basePrompt = config.agent.systemPromptExtra
-        ? `${buildIdentity(config, ctx)}\n\n${config.agent.systemPromptExtra}`
-        : buildIdentity(config, ctx);
+    const relevantExtensions = buildRelevantExtensionsBlock(options.userMessage, options.role);
+    const baseIdentity = buildIdentity(config, ctx);
+    const basePrompt = [
+        baseIdentity,
+        config.agent.systemPromptExtra?.trim(),
+        relevantExtensions,
+    ].filter(Boolean).join("\n\n");
 
     const roleExtension = options.role ? loadRoleExtension(options.role) : "";
     const systemPrompt = roleExtension

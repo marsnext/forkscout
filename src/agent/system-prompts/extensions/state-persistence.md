@@ -1,82 +1,49 @@
 # State Persistence
 
-## What Must Survive Restart?
+## Must survive restart
 
-| State Type | Storage Location | Survival Guarantee |
-|------------|------------------|-------------------|
-| Chat histories | `.agents/chats/telegram-{chatId}.json` | ✅ Yes |
-| Pending tasks | `.agents/tasks/` | ✅ Yes |
-| Secret vault aliases | `.agents/vault.json` | ✅ Yes |
-| Access requests | `.agents/access-requests.json` | ✅ Yes |
-| Auth allowlist | `.agents/auth.json` | ✅ Yes |
-| Memory knowledge graph | MCP server internal | ✅ Yes |
+- chat histories
+- pending tasks
+- secret vault aliases
+- access requests
+- auth allowlist
+- memory knowledge graph
 
-## What Can Be Lost?
+## Can be rebuilt
 
-| State Type | Location | Loss Acceptable? |
-|------------|----------|------------------|
-| In-memory rate limiter | Runtime only | ✅ Yes (resets on restart) |
-| Active tool progress indicators | Runtime only | ✅ Yes |
-| Chat abort controllers | Runtime only | ✅ Yes |
-| Temporary file caches | `/tmp` or agent cache | ✅ Yes (rebuild on demand) |
+- in-memory rate limiters
+- active progress indicators
+- abort controllers
+- temporary caches
 
-## Restart Survival Checklist
+## Before restart
 
-Before allowing agent restart, verify:
+Verify that persistent state is saved, especially chats, tasks, vault data, auth/access files, and memory-backed data.
+Checkpoint before major restart-related changes.
 
-- [ ] Chat histories are persisted to disk
-- [ ] Pending tasks have saved state
-- [ ] Secret vault data is backed up
-- [ ] Access requests and auth list are saved
-- [ ] Memory knowledge graph is exported/backupped
+## On startup
 
-## State Restoration Protocol
+1. load persistent state
+2. restore resumable task state
+3. reinitialize runtime-only state
+4. register tools and MCP servers
+5. verify integrity before processing work
 
-### On Agent Startup
+## Never do this
 
-1. Load persisted chat histories from `.agents/chats/`
-2. Resume pending tasks from `.agents/tasks/`
-3. Load secret vault aliases
-4. Restore access requests and auth list
-5. Reinitialize in-memory state (rate limiters, abort controllers)
-6. Verify all persistent data integrity
+- never delete/overwrite persistent state without approval
+- never skip checkpoints before major changes
+- never start processing before persistent state is loaded
 
-### Checkpoint Before Restart
+## Migration / recovery
 
-```bash
-git add -A && git commit -m "Checkpoint: before agent restart"
-```
+For migrations: back up first, migrate, verify integrity, notify owner, then commit.
 
-## Session Startup Rules
+For data loss/corruption:
 
-### What Happens on Startup
-- Load all persistent state (chat histories, tasks, vault)
-- Reinitialize in-memory runtime state
-- Register all tools and MCP servers
-- Load channel-specific configurations
-
-### What Must NOT Happen on Startup
-- Never delete or overwrite persistent state without owner approval
-- Never skip checkpoint before major changes
-- Never start processing without loading all persistent state
-
-## State Migration
-
-When system changes require migration:
-
-1. Create backup of all persistent state
-2. Run migration script
-3. Verify data integrity
-4. Notify owner of successful completion
-5. Commit migrated state to git history
-
-## Emergency State Recovery
-
-If agent restart causes data loss:
-
-1. **STOP** — do not continue with corrupted state
-2. **CHECKPOINT** — save current state as-is
-3. **RESTORE** — load from last known-good backup
-4. **INVESTIGATE** — determine cause of data loss
-5. **FIX** — implement permanent solution to prevent recurrence
-6. **NOTIFY** — inform owner of incident and recovery status
+1. stop
+2. checkpoint current state
+3. restore from last known-good backup
+4. investigate cause
+5. fix recurrence
+6. notify owner

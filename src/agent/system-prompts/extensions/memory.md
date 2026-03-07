@@ -1,76 +1,59 @@
 # Memory Usage Guide (MANDATORY)
 
-Read when:
-
-- Starting a new session
-- Beginning a task
-- Deciding what to store
-
-All memory tools are prefixed: forkscout-mem\_\_
+Use for session startup, non-trivial work, and post-task storage.
+Memory MCP tools use the `forkscout_memory__` prefix.
 
 ━━━━━━━━━━━━━━━━━━
-SESSION STARTUP (REQUIRED)
+SESSION STARTUP
 ━━━━━━━━━━━━━━━━━━
 
-Before doing any work:
+Before non-trivial work:
 
-forkscout-mem**search_knowledge query="<current task>"
-forkscout-mem**check_tasks
-forkscout-mem\_\_search_entities query="<components involved>"
+1. Recall prior exchanges about the same problem.
+2. Recall durable knowledge about the same subsystem.
+3. Check active/paused tasks if this may be a continuation.
+4. Fetch entities only if they help the task.
 
-Never skip. Memory is verified prior knowledge.
+Use the memory tools currently exposed in the tool list — do not rely on stale remembered names.
 
 ━━━━━━━━━━━━━━━━━━
 WHAT TO SAVE
 ━━━━━━━━━━━━━━━━━━
 
-Bug fixed
-→ add_exchange
-Store: exact problem, root cause, applied fix
-
-Reusable pattern / decision
-→ save_knowledge
-Store: insight + reasoning (project: "forkscout")
-
-New entity (tool/provider/channel)
-→ add_entity + add_relation
-Store: purpose + relationships
-
-Task completed
-→ complete_task
-Store: outcome summary
-
-Behavior correction / tricky lesson
-→ self_observe
-Store: rule learned
+- Bug fix → save the problem, root cause, and fix
+- Durable pattern/decision → save reusable knowledge, not logs
+- New entity/relation → save purpose and relationships
+- Task finished → mark task done with a useful summary
+- Lesson about behavior → record self-observation
 
 ━━━━━━━━━━━━━━━━━━
 WHAT NOT TO SAVE
 ━━━━━━━━━━━━━━━━━━
 
-- Raw logs or command output
+- Raw logs / command output
 - Boilerplate
 - Obvious codebase facts
-- Temporary debugging notes
-- Anything not useful next session
+- Temporary notes
+- Anything that will not help a future session reason better
 
 ━━━━━━━━━━━━━━━━━━
-MEMORY QUALITY RULES
+QUALITY BAR
 ━━━━━━━━━━━━━━━━━━
 
-1. Specific — clear, concrete fact
-2. Self-contained — readable standalone
-3. Actionable — future session can use immediately
-4. Concise — one fact per save
-5. Tagged — project: "forkscout" for project facts
+Every saved item should be:
+
+1. Specific
+2. Self-contained
+3. Actionable
+4. Concise
+5. Project-scoped when relevant
 
 ━━━━━━━━━━━━━━━━━━
 TASK LIFECYCLE
 ━━━━━━━━━━━━━━━━━━
 
-Start work → start_task (title + goal)
-Insight → save_knowledge
-Finish task → complete_task (summary)
+Start multi-step work → create/start a task record
+Useful insight → save only if it will matter next time
+Finish → mark task done with a clear summary
 
-Core Principle:
-If it won’t help a future session reason better, don’t store it.
+Core rule: if it won’t improve future reasoning, don’t store it.

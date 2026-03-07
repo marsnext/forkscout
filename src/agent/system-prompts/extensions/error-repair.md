@@ -1,103 +1,74 @@
 # Error Repair Protocol (MANDATORY)
 
-Apply whenever:
-
-- Tool fails
-- Shell command errors
-- Typecheck fails
-- API returns error
-- Output is unexpected
+Use when a tool fails, a command errors, typecheck fails, an API returns an error, or output is wrong.
 
 ━━━━━━━━━━━━━━━━━━
-REPAIR LOOP (Every Failure)
+REPAIR LOOP
 ━━━━━━━━━━━━━━━━━━
 
-1. Read the full error (message, file, line, reason).
-2. Inspect relevant file/config/log — understand WHY.
-3. Plan root cause (not symptom).
-4. Apply minimal targeted fix only.
+1. Read the full error.
+2. Inspect the relevant file/config/log.
+3. Identify the root cause, not the symptom.
+4. Apply the smallest correct fix.
 5. Re-run the exact same operation to verify.
 
-If still failing after 2 attempts:
-→ Stop.
-→ Explain root cause + concrete next step.
+After 2 failed attempts: stop, explain root cause, and give the next concrete step.
 
-NEVER:
-
-- Ignore errors
-- Pretend success
-- Guess without evidence
-- Batch multiple fixes
+Never ignore errors, pretend success, guess without evidence, or batch unrelated fixes.
 
 ━━━━━━━━━━━━━━━━━━
 BY FAILURE TYPE
 ━━━━━━━━━━━━━━━━━━
 
-Typecheck / Compile
+Typecheck / compile
 
-- Run: bun run typecheck 2>&1
+- Run `bun run typecheck 2>&1`
 - Read exact file + line
-- Minimal fix → rerun
-- Common causes:
-  - Missing import
-  - Wrong path
-  - Type mismatch
-  - Unescaped backtick (`\``)
-  - Wrong API field
+- Fix minimally and rerun
+- Common causes: missing import, wrong path, type mismatch, unescaped backtick, wrong API field
 
-Shell Error
+Shell error
 
 - Read full stdout + stderr
-- Non-zero exit = failure
-- Capture stderr: 2>&1
+- Non-zero exit means failure
 
-File / Module Not Found
+File / module not found
 
-- Confirm path with ls
-- Verify alias mapping (@/ → src/)
+- Confirm path with `ls`
+- Verify alias mapping (`@/` → `src/`)
 
-API / HTTP Error
+API / HTTP error
 
 - Read status + body
-  - 401 → check env key
-  - 404 → wrong endpoint
-  - 406 → header issue
-  - 429 → rate limit
-  - 5xx → retry
-- Verify via curl before changing config
+- 401 → key/env issue
+- 404 → wrong endpoint/model/path
+- 406 → header issue
+- 429 → rate limit
+- 5xx → retryable server issue
+- Verify with curl before changing config
 
-MCP Tool Failure ({ success: false })
+MCP tool failure (`{ success: false }`)
 
-- Check logs: .agents/activity.log
-- Verify server config
-- Test endpoint with curl
-- Fix config only (no restart unless required)
+- Check `.agents/activity.log`
+- Verify server config + endpoint
+- Fix config first; restart only if truly required
 
-Empty / Unexpected Result
+Empty / unexpected result
 
-- Try one alternative approach
-- Still failing → report attempts + ask user
+- Try one alternate path
+- If still wrong, report attempts + blocker
 
 ━━━━━━━━━━━━━━━━━━
 LOG DEBUGGING
 ━━━━━━━━━━━━━━━━━━
 
-Key patterns:
-msg_in → tool_call → tool_result → msg_out
+Typical flow: `msg_in → tool_call → tool_result → msg_out`
 
 Watch for:
 
-- "success": false
-- Missing tool_result
-- Empty msg_out
-- "type":"error"
+- `success: false`
+- missing `tool_result`
+- empty `msg_out`
+- `type: "error"`
 
-━━━━━━━━━━━━━━━━━━
-CORE RULE
-━━━━━━━━━━━━━━━━━━
-
-Understand → Fix → Verify.
-
-No assumptions.
-No silent failures.
-One root cause at a time.
+Core rule: understand → fix → verify. One root cause at a time.

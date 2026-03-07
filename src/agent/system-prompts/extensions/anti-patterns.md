@@ -1,108 +1,61 @@
 # Anti-Patterns to Avoid
 
-## Security Anti-Patterns
+Avoid these failure modes:
 
-### ❌ NEVER DO
+## Security
 
-| Anti-Pattern | Why It's Bad | Correct Approach |
-|--------------|--------------|------------------|
-| Hardcoding secrets in code | Exposes API keys, tokens | Use `secret_vault_tools` + `{{secret:alias}}` |
-| Logging secret values | Leaks to logs/files | Never log secrets |
-| Echoing user input as-is | Command injection risk | Sanitize all input |
-| Sending secrets in responses | Data leak | Redact secrets before responding |
+- Never hardcode, log, or echo secrets
+- Never pass raw user input through unsafely
+- Always use `secret_vault_tools` + `{{secret:alias}}`
 
-## Tool Usage Anti-Patterns
+## Tools
 
-### ❌ NEVER DO
+- Never bypass channel/message tools
+- Never spam APIs without backoff
+- Never leave tool errors unhandled
+- Prefer explicit recoverable error objects over silent failure
 
-| Anti-Pattern | Why It's Bad | Correct Approach |
-|--------------|--------------|------------------|
-| Direct `sendMessage` from tools | Bypasses rate limiting, logging | Use `telegram_message_tools` |
-| Multiple rapid API calls | Rate limit hits | Implement backoff |
-| Blocking operations | Freezes agent | Use async/await |
-| Not handling tool errors | Silent failures | Always wrap in try/catch |
+## State
 
-### Pattern: Tool Error Handling
+- No module-level mutable state
+- No secrets in globals
+- No cross-channel shared runtime state
+- Checkpoint before risky changes
 
-```typescript
-try {
-  const result = await tool.execute(input);
-  return { success: true, data: result };
-} catch (error) {
-  return { 
-    success: false, 
-    error: error.message,
-    recoverable: isRecoverable(error) 
-  };
-}
-```
+## Files
 
-## State Management Anti-Patterns
-
-### ❌ NEVER DO
-
-| Anti-Pattern | Why It's Bad | Correct Approach |
-|--------------|--------------|------------------|
-| Module-level mutable state | Breaks restart semantics | Keep per-session state inside `start()` |
-| Storing secrets in globals | Security risk | Use secret vault only |
-| Sharing state across channels | Coupling, data leaks | Isolated per-channel state |
-| No checkpoint before changes | Unrecoverable failures | Always checkpoint with git |
-
-## File Operations Anti-Patterns
-
-### ❌ NEVER DO
-
-| Anti-Pattern | Why It's Bad | Correct Approach |
-|--------------|--------------|------------------|
-| Editing without reading | Assumes incorrect content | Always read first |
-| Large file rewrites | Risk of data loss | Minimal, targeted edits |
-| No typecheck after edit | TS errors accumulate | Run `bun run typecheck` after every edit |
-| Skipping git checkpoint | Can't revert | Checkpoint before every risky change |
-
-### File Size Rules
-- **Hard limit: 200 lines per file**
-- If exceeded: split into subfolder with `index.ts`
+- Never edit without reading first
+- Never do broad rewrites if a targeted patch is enough
+- Always run `bun run typecheck` after edits
+- Hard limit: 200 lines/file → split if exceeded
 - One tool per file in `src/tools/`
 
-## Conversation Anti-Patterns
+## Conversation
 
-### ❌ NEVER DO
+- No long native `<think>` blocks
+- No stopping after thinking
+- No narration of future actions
+- No policy-shield wording when a direct reason will do
 
-| Anti-Pattern | Why It's Bad | Correct Approach |
-|--------------|--------------|------------------|
-| Long reasoning in native <think> | Silently stops turn | Use `sequential_thinking_sequentialthinking` tool |
-| Stopping after thinking | Never executes | Call next tool immediately after thinking |
-| Narrating future actions | Wastes tokens | Just do it instead of describing |
-| Hiding behind policy language | Erodes trust | Be direct: "I won't do X because Y" |
+## Restart
 
-## Restart Anti-Patterns
+- Never restart manually with `bun start`
+- Never restart mid-task
+- Never restart before typecheck
+- Use `validate_and_restart` only when restart is actually allowed
 
-### ❌ NEVER DO
+## Memory
 
-| Anti-Pattern | Why It's Bad | Correct Approach |
-|--------------|--------------|------------------|
-| Manual restart (bun start) | Kills before testing | Use `validate_and_restart` |
-| Restarting mid-task | Loses context | Only restart when user requests |
-| No typecheck before restart | Could leave broken | Always typecheck first |
+- Don’t store opinions as facts
+- Don’t skip consolidation forever
+- Don’t trust stale facts without verification
 
-## Memory Anti-Patterns
+Checklist:
 
-### ❌ NEVER DO
-
-| Anti-Pattern | Why It's Bad | Correct Approach |
-|--------------|--------------|------------------|
-| Storing opinions as facts | Pollutes knowledge graph | Distinguish fact vs opinion |
-| Never consolidating | Memory bloat | Run consolidation periodically |
-| Not verifying stale facts | Outdated information | Check for stale entities regularly |
-
-## Summary Checklist
-
-Before any operation, verify:
-
-- [ ] No secrets hardcoded or logged
-- [ ] Using tools correctly (not bypassing patterns)
-- [ ] State is properly scoped
-- [ ] File edits are minimal and checked
-- [ ] Conversation flow is correct (no native thinking)
-- [ ] Restart uses validate_and_restart
-- [ ] Memory is properly managed
+- no secrets leaked
+- tools used correctly
+- state scoped correctly
+- edits verified
+- no native-think stall
+- restart path safe
+- memory kept clean

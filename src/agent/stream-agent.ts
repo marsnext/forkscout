@@ -1,4 +1,4 @@
-// src/agent/stream-agent.ts — streamText-based agent runner (live token output)
+// src/agent/stream-agent.ts — streamText-based agent runner (channel-agnostic streaming)
 import { streamText, generateText, stepCountIs } from "ai";
 import type { ModelMessage } from "ai";
 import type { AppConfig } from "@/config.ts";
@@ -34,7 +34,7 @@ export async function streamAgent(
     const streamTools = options.onToolCall
         ? wrapToolsWithProgress(tools, options.onToolCall)
         : tools;
-    const { loopAbort, stepRef, onStepFinish } = makeLoopGuard(config, options, channel, chatId, "stream");
+    const { loopAbort, onStepFinish } = makeLoopGuard(config, options, channel, chatId, "stream");
 
     const stream = streamText({
         model, system: systemPrompt, messages, tools: streamTools as any,
@@ -62,18 +62,13 @@ export async function streamAgent(
                 if (reasoningActive) await closeReasoning();
                 acc.text += delta;
                 activity.token(delta, channel, chatId);
-                process.stdout.write(delta);
                 yield delta;
             } else if (part.type === "reasoning-delta" && part.text) {
-                process.stdout.write(`\x1b[2m${part.text}\x1b[0m`);
                 if (options.onThinkingDelta) { try { await options.onThinkingDelta(part.text); } catch { /* never block stream */ } }
             } else if (part.type === "reasoning-start") {
                 if (reasoningActive) await closeReasoning();
                 reasoningActive = true;
-                process.stdout.write("\n\x1b[2m[thinking]\x1b[0m ");
                 if (options.onThinkingStart) { try { await options.onThinkingStart(); } catch { /* never block stream */ } }
-            } else if (part.type === "start-step") {
-                process.stdout.write(`\n\x1b[90m── step ${stepRef.n + 1} ──\x1b[0m\n`);
             } else if (part.type === "error") {
                 const errPayload = part.error ?? part;
                 logger.warn(`[stream] non-fatal stream error: ${JSON.stringify(errPayload)}`);
@@ -82,7 +77,6 @@ export async function streamAgent(
         }
 
         if (reasoningActive) await closeReasoning();
-        process.stdout.write("\n");
     }
 
     return {

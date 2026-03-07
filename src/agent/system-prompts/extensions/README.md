@@ -1,64 +1,49 @@
-# System Prompt Extensions — How This Folder Works
+# System Prompt Extensions
 
-## Purpose
+This folder holds prompt modules used in two ways:
 
-This folder holds **on-demand instruction modules** referenced from `identity.ts`.
+1. **Auto-injected** when the current task matches a topic
+2. **Read on demand** when the agent needs more detail
 
-Instead of embedding verbose instructions directly in the system prompt (which grows the context window on every call), `identity.ts` contains a single one-liner per topic. When the agent needs to act on that topic, it calls `read_file` on the relevant `.md` file to load the full instructions.
+Goal: keep `identity.ts` lean while making deeper rules available when needed.
 
----
+## File standard
 
-## File Standard
+Every file is plain Markdown only:
 
-Each file is a plain Markdown document — no TypeScript, no exports, no magic.
+- `kebab-case.md`
+- one topic per file
+- direct agent-facing instructions
+- no code exports or side effects
 
-| Rule               | Detail                                          |
-| ------------------ | ----------------------------------------------- |
-| File name          | `kebab-case.md`                                 |
-| Contents           | Plain Markdown — headings, bullets, code blocks |
-| Tone               | Direct imperative instructions for the agent    |
-| No side effects    | Pure documentation only                         |
-| One topic per file | Do not combine unrelated topics                 |
+## Wiring
 
----
+- Base references live in `identity.ts`
+- Task-based selection lives in `select-extensions.ts`
+- Non-injected modules can still be read directly
 
-## How Files Are Referenced
-
-In `identity.ts`, each section is replaced with a one-liner:
-
-```
-📋 For <topic>: read_file('src/agent/system-prompts/extensions/<file>.md')
-```
-
-The agent calls `read_file` with that path when it needs the instructions.
-
----
-
-## Current Files
+## Current files
 
 | File                          | Topic                                                                                       | In identity.ts? |
 | ----------------------------- | ------------------------------------------------------------------------------------------- | --------------- |
-| `file-editing.md`             | File editing workflow: folder standards, checkpoint commit, typecheck, verify startup       | ✅              |
+| `file-editing.md`             | File editing workflow: read, checkpoint, minimal edit, typecheck, verify                    | ✅              |
 | `error-repair.md`             | Error diagnosis & self-repair: repair loop, all failure types, log commands                 | ✅              |
 | `error-recovery-priority.md`  | Error classification: fatal vs self-recoverable, recovery protocol, escalation              | ✅              |
 | `tool-error-recovery.md`      | Tool failure protocol: diagnose → fix → typecheck → retry                                   | ✅              |
-| `memory.md`                   | Memory (forkscout-mem MCP): session startup, what to save, quality rules, task lifecycle    | ✅              |
+| `memory.md`                   | Memory MCP workflow: recall before work, save only durable engineering intelligence         | ✅              |
 | `task-orchestration.md`       | Spawning self-sessions, parallel workers, sequential chains, notifying users                | ✅              |
 | `role-definition.md`          | Agent vs assistant, autonomy spectrum, self-modification rules                              | ✅              |
 | `security-and-trust.md`       | Trust levels, secret handling, security rules beyond the vault                              | ✅              |
 | `state-persistence.md`        | State persistence, saving progress across restarts                                          | ✅              |
 | `performance-optimization.md` | Token budgeting, latency reduction, performance patterns                                    | ✅              |
+| `anti-patterns.md`            | High-cost / high-risk behaviors to avoid                                                    | ✅              |
+| `cognitive-enhancements.md`   | Uncertainty, self-observation, memory hygiene, improvement patterns                         | ✅              |
 | `role-admin.md`               | Per-turn instructions for `[ADMIN]` messages: allowed capabilities, forbidden actions, tone | Role extension  |
 | `role-user.md`                | Per-turn instructions for `[USER]` messages: allowed capabilities, forbidden actions, tone  | Role extension  |
 
----
-
-## Adding a New Extension
+## Adding a new extension
 
 1. Create `src/agent/system-prompts/extensions/<topic>.md`
-2. Write clear, actionable instructions (imperative tone, agent-facing)
-3. Add a one-liner reference in `identity.ts`:
-   ```
-   📋 For <topic>: read_file('src/agent/system-prompts/extensions/<topic>.md')
-   ```
-4. Update the "Current Files" table above
+2. Write short, actionable instructions
+3. Decide whether it belongs in `identity.ts`, `select-extensions.ts`, or both
+4. Update the table above

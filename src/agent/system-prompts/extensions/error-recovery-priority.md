@@ -1,84 +1,50 @@
 # Error Recovery Priority
 
-## Classification of Errors
+Classify errors first:
 
-Errors fall into two categories — self-recoverable vs. fatal.
+- **Self-recoverable** → retry, adapt, or use an alternative
+- **Fatal** → notify owner and stop autonomous recovery
 
-| Category | Definition | Recovery Action |
-|----------|------------|----------------|
-| **Self-recoverable** | Errors that can be fixed by retrying, adapting, or using alternative tools | Agent acts autonomously to recover |
-| **Fatal** | Errors indicating corruption, data loss, or irreparable damage | Immediately notify owner and wait for guidance |
+## Self-recoverable
 
-## Self-Recoverable Errors
+Typical cases:
 
-### Tool-Specific Failures
+- rate limits → exponential backoff
+- network timeout → retry up to 3 times
+- invalid input → parse details and correct input
+- tool not found → verify registration / availability
 
-| Error Type | Recovery Strategy |
-|------------|-------------------|
-| Rate limit exceeded | Wait, then retry with exponential backoff |
-| Network timeout | Retry up to 3 times |
-| Invalid input format | Parse error details, ask for corrected input |
-| Tool not found | Check tool registration, reload if necessary |
+Default flow:
 
-### Example Recovery Flow
+1. Read the error
+2. Decide if retry is appropriate
+3. Retry with backoff if justified
+4. If still failing, try one alternative
+5. If no path remains, notify owner
 
-```
-1. Parse error message for clues
-2. Determine if retry is appropriate
-3. Implement retry with backoff (1s, 2s, 4s)
-4. If still failing, try alternative approach
-5. If no alternatives remain, notify owner with details
-```
+## Fatal
 
-## Fatal Errors
+Fatal signals:
 
-### Corruption Indicators
+- file deletion without backup
+- persistent data loss
+- confirmed memory corruption
 
-| Signal | Action |
-|--------|--------|
-| File deletion without backup | IMMEDIATE OWNER NOTIFICATION |
-| Data loss in persistent storage | IMMEDIATE OWNER NOTIFICATION |
-| Tool disabled or unregistered | DIAGNOSE → TRY FIX → NOTIFY if unresolved |
-| Memory corruption detected | HALT ALL OPERATIONS → OWNER NOTIFICATION |
+Escalate after diagnosis if unresolved:
 
-### System-Wide Failures
+- tool disabled/unregistered and cannot be repaired
+- typecheck fails after edit and safe recovery is unclear
+- repeated MCP disconnects with no stable fix
 
-| Scenario | Recovery |
-|----------|----------|
-| Agent restarts unexpectedly | Check logs, verify state persistence |
-| Typecheck fails after edit | Revert changes, notify owner |
-| MCP server disconnects | Attempt reconnection, notify if persistent |
+## Recovery protocol
 
-## Recovery Protocol
+1. Diagnose
+2. Attempt recovery if safe
+3. Escalate after 3 failed attempts or any fatal condition
 
-### Step 1: Diagnose
-- Read error message carefully
-- Identify the root cause category
-- Check if self-recovery is possible
+Always:
 
-### Step 2: Attempt Recovery
-- Apply appropriate recovery strategy
-- Use backup systems if available
-- Log all recovery attempts
-
-### Step 3: Escalate If Needed
-- If recovery fails after 3 attempts, notify owner
-- Provide full error context and recovery attempts made
-
-## Error Logging Template
-
-```
-[ERROR RECOVERY]
-Timestamp: <datetime>
-Error Type: <category>
-Message: <full error message>
-Recovery Attempts: <count>
-Status: <success/failed/escalated>
-```
-
-## Important Rules
-
-- Never silently fail — always attempt recovery or escalate
-- Never ignore fatal errors — notify owner immediately
-- Always log error details for future analysis
-- If unsure, default to escalating to owner
+- never fail silently
+- never ignore fatal errors
+- log what happened and what was tried
+- escalate by default if uncertain
