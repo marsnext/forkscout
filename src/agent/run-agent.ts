@@ -11,6 +11,7 @@ import { wrapToolsWithProgress } from "@/agent/tool-wrappers.ts";
 import { planTask, formatPlanAsContext } from "@/agent/planner.ts";
 import type { TaskPlan } from "@/agent/planner.ts";
 import { stripReasoning, makeLoopGuard, NUDGE_PROMPT, repairToolCall } from "@/agent/agent-utils.ts";
+import { buildMemoryStartupMessage, autoSaveMemory, countToolCalls } from "@/agent/memory-hooks.ts";
 import type { AgentRunOptions, AgentRunResult } from "@/agent/types.ts";
 
 const logger = log("agent");
@@ -28,9 +29,15 @@ export async function runAgent(
 
     activity.msgIn(channel ?? "unknown", chatId, sanitizeForDisplay(options.userMessage));
 
+    // ── Session startup: inject mandatory memory recall for fresh sessions ──────
+    const sessionKey = options.meta?.sessionKey ?? options.meta?.chatId?.toString() ?? "default";
+    const isFreshSession = (options.chatHistory ?? []).length === 0;
+    const startupMsg = buildMemoryStartupMessage(options.userMessage, sessionKey, isFreshSession);
+    const messagesWithMemory: ModelMessage[] = startupMsg ? [startupMsg, ...messages] : messages;
+
     // ── Optional structured planning step ─────────────────────────────────────
     let taskPlan: TaskPlan | null = null;
-    let planMessages = messages;
+    let planMessages = messagesWithMemory;
     if (config.llm.planFirst) {
         taskPlan = await planTask(model, options.userMessage);
         if (taskPlan) {
@@ -98,5 +105,19 @@ export async function runAgent(
 
     const cleanText = strippedText.trim() || "(I finished thinking but produced no response. Please ask again or rephrase.)";
     activity.msgOut(channel ?? "unknown", chatId, cleanText, finalResult.steps?.length ?? 0, Date.now() - startMs);
+
+    // ── Post-task auto-save: fire-and-forget, never block the response ──────────
+    const toolCount = countToolCalls((finalResult.steps ?? []) as Array<{ toolCalls?: unknown[] }>);
+    autoSaveMemory({
+        model,
+        systemMessage: systemPrompt,
+        conversationMessages: planMessages,
+        responseMessages: finalResult.response.messages as ModelMessage[],
+        toolCallCount: toolCount,
+        sessionKey,
+        channel: channel ?? "unknown",
+        maxTokens: config.llm.maxTokens,
+    }).catch(() => { });
+
     return { text: cleanText, steps: finalResult.steps?.length ?? 0, bootstrapToolNames: Object.keys(bootstrapTools), responseMessages: finalResult.response.messages as ModelMessage[], ...(taskPlan ? { plan: taskPlan } : {}) };
 }

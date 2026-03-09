@@ -10,6 +10,7 @@ import { buildAgentParams } from "@/agent/build-params.ts";
 import { wrapToolsWithProgress } from "@/agent/tool-wrappers.ts";
 import { retryWithContextTrim } from "@/agent/context-retry.ts";
 import { stripReasoning, makeLoopGuard, NUDGE_PROMPT, repairToolCall } from "@/agent/agent-utils.ts";
+import { buildMemoryStartupMessage, autoSaveMemory, countToolCalls } from "@/agent/memory-hooks.ts";
 import type { AgentRunOptions, AgentRunResult, StreamAgentResult } from "@/agent/types.ts";
 
 const logger = log("agent");
@@ -31,13 +32,19 @@ export async function streamAgent(
     const reasoningTag = config.llm.reasoningTag?.trim();
     activity.msgIn(channel ?? "unknown", chatId, sanitizeForDisplay(options.userMessage));
 
+    // ── Session startup: inject mandatory memory recall for fresh sessions ──────
+    const sessionKey = options.meta?.sessionKey ?? options.meta?.chatId?.toString() ?? "default";
+    const isFreshSession = (options.chatHistory ?? []).length === 0;
+    const startupMsg = buildMemoryStartupMessage(options.userMessage, sessionKey, isFreshSession);
+    const messagesWithMemory: ModelMessage[] = startupMsg ? [startupMsg, ...messages] : messages;
+
     const streamTools = options.onToolCall
         ? wrapToolsWithProgress(tools, options.onToolCall)
         : tools;
     const { loopAbort, onStepFinish } = makeLoopGuard(config, options, channel, chatId, "stream");
 
     const stream = streamText({
-        model, system: systemMessage, messages, tools: streamTools as any,
+        model, system: systemMessage, messages: messagesWithMemory, tools: streamTools as any,
         stopWhen: stepCountIs(config.llm.maxSteps), maxTokens: config.llm.maxTokens,
         abortSignal: loopAbort.signal,
         ...(devtoolsEnabled && { experimental_telemetry: { isEnabled: true } }),
@@ -133,6 +140,20 @@ export async function streamAgent(
 
             const text = strippedText.trim() || "(I finished thinking but produced no response. Please ask again or rephrase.)";
             activity.msgOut(channel ?? "unknown", chatId, text, (finalSteps as any)?.length ?? 0, Date.now() - startMs);
+
+            // ── Post-task auto-save: fire-and-forget ─────────────────────────
+            const toolCount = countToolCalls((finalSteps as any ?? []) as Array<{ toolCalls?: unknown[] }>);
+            autoSaveMemory({
+                model,
+                systemMessage: systemPrompt,
+                conversationMessages: messagesWithMemory,
+                responseMessages: (finalResponse as any).messages as ModelMessage[],
+                toolCallCount: toolCount,
+                sessionKey,
+                channel: channel ?? "unknown",
+                maxTokens: config.llm.maxTokens,
+            }).catch(() => { });
+
             return { text, steps: (finalSteps as any)?.length ?? 0, bootstrapToolNames: Object.keys(bootstrapTools), responseMessages: (finalResponse as any).messages as ModelMessage[] };
         },
     };
