@@ -10,6 +10,7 @@ import { discoverTools } from "@/tools/auto_discover_tools.ts";
 import { discoverMcpTools } from "@/mcp-servers/auto_discover_mcp.ts";
 import { buildIdentity, type IdentityContext } from "@/agent/system-prompts/identity.ts";
 import { buildRelevantExtensionsBlock } from "@/agent/system-prompts/select-extensions.ts";
+import { buildProjectContext } from "@/agent/system-prompts/build-project-context.ts";
 import { getSkills } from "@/skills/auto_discover_skills.ts";
 import { sanitizeForPrompt } from "@/utils/sanitize-messages.ts";
 import { sanitizeUserMessage } from "@/utils/secrets.ts";
@@ -128,6 +129,9 @@ export async function buildAgentParams(config: AppConfig, options: AgentRunOptio
     const relevantExtensions = buildRelevantExtensionsBlock(options.userMessage, options.role);
     const baseIdentity = buildIdentity(config, ctx);
     const roleExtension = options.role ? loadRoleExtension(options.role) : "";
+    // projectContext: live git state + channels + version — injected into dynamicPrompt so it's
+    // always fresh but never breaks Anthropic cache on the stable baseIdentity block.
+    const projectContext = buildProjectContext(config, options.meta?.sessionKey);
     // currentTime injected into dynamicPrompt (NOT baseIdentity) so the stable block stays
     // byte-for-byte identical across same-session calls → Anthropic cache_control hits every time.
     const currentTime = new Date().toLocaleString("en-US", {
@@ -138,6 +142,7 @@ export async function buildAgentParams(config: AppConfig, options: AgentRunOptio
     // Kept separate from baseIdentity so cache_control is only placed on the stable block.
     const dynamicPrompt = [
         `Time: ${currentTime}`,
+        projectContext,
         config.agent.systemPromptExtra?.trim(),
         relevantExtensions,
         roleExtension ? `---\n\n## Active Role Instructions\n\n${roleExtension}` : "",
