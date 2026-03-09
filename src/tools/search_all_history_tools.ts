@@ -23,9 +23,14 @@ function listAllSessions(): string[] {
 
 export const search_all_history = tool({
     description:
-        "Search ALL past conversations across every channel and session using keyword matching. " +
-        "Use this when you need to recall something but don't know which chat or channel it came from. " +
-        "Returns ranked results with session name, timestamp, and matched turn content.",
+        "Search ALL past conversations across every channel and session by keyword. " +
+        "WHEN TO USE: recalling something from a past conversation when you don't know which channel or session it was in; " +
+        "finding when a user last mentioned a topic, a past decision, or a config value that was discussed. " +
+        "WHEN NOT TO USE: searching memory entities or facts — use forkscout_memory__search_entities instead; " +
+        "you already know the session — pass session_filter to restrict search. " +
+        "Use specific multi-word queries: 'api key telegram setup' beats 'api'. " +
+        "Returns ranked results (score = keyword hits) with session name, timestamp, and full turn text. " +
+        "Example: {query: 'cron schedule daily 9am report', session_filter: 'telegram', top_k: 5}",
     inputSchema: z.object({
         query: z.string().describe(
             "Keywords or phrase to search for. Be specific — 'deploy cron schedule' is better than 'deploy'."

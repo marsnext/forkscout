@@ -45,9 +45,14 @@ function applyEdit(path: string, oldString: string, newString: string, replaceAl
 export const edit_file_tools = tool({
     description:
         "Edit files by replacing exact string matches — no need to read and rewrite the whole file. " +
-        "Pass an array of edits, each with a file path, the exact text to find (oldString), and the replacement (newString). " +
-        "oldString MUST be unique in the file — include 3-5 lines of context around the change to avoid ambiguity. " +
-        "Much faster than read_file + write_file for targeted edits.",
+        "Pass an array of edits: each with path, oldString (exact text to find), and newString (replacement). " +
+        "CRITICAL RULES: (1) Always read the file first so you know the exact content. " +
+        "(2) oldString must appear EXACTLY ONCE — include at least 3 lines of surrounding context to ensure uniqueness. " +
+        "(3) Match whitespace exactly — tabs vs spaces matter. (4) Never include line numbers in oldString. " +
+        "Use replaceAll:true to rename a variable, type, or import across the entire file. " +
+        "WHEN NOT TO USE: full file rewrites — use write_file_tools; creating new files — use write_file_tools. " +
+        "Batch edits: put all changes to the same file in one call rather than separate calls. " +
+        "Example: {path: 'src/config.ts', oldString: '  timeout: 30,\\n  retries: 3', newString: '  timeout: 60,\\n  retries: 5'}",
     inputSchema: z.object({
         edits: z.array(
             z.object({

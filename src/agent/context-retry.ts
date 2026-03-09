@@ -2,7 +2,7 @@
 // Called by stream-agent.ts when a context overflow stream error is detected.
 
 import { generateText, stepCountIs } from "ai";
-import type { ModelMessage } from "ai";
+import type { ModelMessage, SystemModelMessage } from "ai";
 import type { AppConfig } from "@/config.ts";
 import { withRetry } from "@/llm/index.ts";
 import { log } from "@/logs/logger.ts";
@@ -22,7 +22,8 @@ function trimHistory(msgs: ModelMessage[], keepLast: number): ModelMessage[] {
 export interface ContextRetryOptions {
     config: AppConfig;
     model: any;
-    systemPrompt: string;
+    /** Structured system message(s) — passed directly to `system:` in generateText. */
+    systemMessage: SystemModelMessage | SystemModelMessage[];
     messages: ModelMessage[];
     tools: any;
     maxTokens: number;
@@ -43,17 +44,19 @@ function stripReasoning(text: string, tag?: string): string {
 export async function retryWithContextTrim(opts: ContextRetryOptions): Promise<{
     text: string | null; response: any; steps: any;
 }> {
-    const { config, model, systemPrompt, messages, tools, maxTokens, reasoningTag, channel } = opts;
+    const { config, model, systemMessage, messages, tools, maxTokens, reasoningTag, channel } = opts;
     const label = `ctx-retry:${channel ?? "unknown"}`;
     const tag = reasoningTag?.trim();
     // Always keep at least the last message (current user input) — AI SDK rejects empty messages array
     const safeSlice = (n: number) => trimHistory(messages, n).length > 0 ? trimHistory(messages, n) : messages.slice(-1);
+    // Last-resort attempt: abandon the full system prompt to minimise token use.
+    const minimalMsg: SystemModelMessage = { role: "system", content: minimalPrompt(config) };
 
-    const attempts: Array<{ msgs: ModelMessage[]; prompt: string; useTools: boolean; label: string }> = [
-        { msgs: safeSlice(6), prompt: systemPrompt, useTools: true, label: "6 turns" },
-        { msgs: safeSlice(2), prompt: systemPrompt, useTools: true, label: "2 turns" },
-        { msgs: safeSlice(0), prompt: systemPrompt, useTools: false, label: "1 msg, no tools" },
-        { msgs: safeSlice(0), prompt: minimalPrompt(config), useTools: false, label: "1 msg, minimal prompt" },
+    const attempts: Array<{ msgs: ModelMessage[]; sysMsg: SystemModelMessage | SystemModelMessage[]; useTools: boolean; label: string }> = [
+        { msgs: safeSlice(6), sysMsg: systemMessage, useTools: true, label: "6 turns" },
+        { msgs: safeSlice(2), sysMsg: systemMessage, useTools: true, label: "2 turns" },
+        { msgs: safeSlice(0), sysMsg: systemMessage, useTools: false, label: "1 msg, no tools" },
+        { msgs: safeSlice(0), sysMsg: minimalMsg, useTools: false, label: "1 msg, minimal prompt" },
     ];
 
     for (const attempt of attempts) {
@@ -61,7 +64,7 @@ export async function retryWithContextTrim(opts: ContextRetryOptions): Promise<{
         try {
             const result = await withRetry(() => generateText({
                 model,
-                system: attempt.prompt,
+                system: attempt.sysMsg,
                 messages: attempt.msgs,
                 ...(attempt.useTools ? { tools, stopWhen: stepCountIs(2) } : {}),
                 maxTokens,

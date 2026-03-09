@@ -23,7 +23,7 @@ export async function streamAgent(
     config: AppConfig,
     options: AgentRunOptions
 ): Promise<StreamAgentResult> {
-    const { tools, bootstrapTools, model, systemPrompt, messages, devtoolsEnabled } =
+    const { tools, bootstrapTools, model, systemMessage, systemPrompt, messages, devtoolsEnabled } =
         await buildAgentParams(config, options);
 
     const { channel, chatId } = options.meta ?? {};
@@ -37,7 +37,7 @@ export async function streamAgent(
     const { loopAbort, onStepFinish } = makeLoopGuard(config, options, channel, chatId, "stream");
 
     const stream = streamText({
-        model, system: systemPrompt, messages, tools: streamTools as any,
+        model, system: systemMessage, messages, tools: streamTools as any,
         stopWhen: stepCountIs(config.llm.maxSteps), maxTokens: config.llm.maxTokens,
         abortSignal: loopAbort.signal,
         ...(devtoolsEnabled && { experimental_telemetry: { isEnabled: true } }),
@@ -101,7 +101,7 @@ export async function streamAgent(
                 if (contextOverflow) {
                     logger.warn("[streamAgent] context overflow — delegating to context-retry");
                     const { text: rt, response: rr, steps: rs } = await retryWithContextTrim({
-                        config, model, systemPrompt, messages, tools: streamTools as any,
+                        config, model, systemMessage, messages, tools: streamTools as any,
                         maxTokens: config.llm.maxTokens, reasoningTag, channel,
                     });
                     if (rt) { strippedText = rt; finalResponse = rr; finalSteps = rs; }
@@ -116,7 +116,7 @@ export async function streamAgent(
                     try {
                         const { onStepFinish: retryStep } = makeLoopGuard(config, options, channel, chatId, "stream-retry");
                         const retryResult = await withRetry(() => generateText({
-                            model, system: systemPrompt, messages: retryMessages, tools: streamTools as any,
+                            model, system: systemMessage, messages: retryMessages, tools: streamTools as any,
                             stopWhen: stepCountIs(5), maxTokens: config.llm.maxTokens,
                             onStepFinish: retryStep,
                         } as any), `streamAgent-retry:${channel ?? "unknown"}`);

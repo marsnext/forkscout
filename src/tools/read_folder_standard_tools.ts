@@ -27,9 +27,12 @@ function readFolderStandard(folder: string) {
 
 export const read_folder_standard_tools = tool({
     description:
-        "Read the coding standards and contracts for one or more src/ subfolders before modifying them. " +
-        "ALWAYS call this before editing or creating files in any src/ subfolder. " +
-        "Returns each folder's README.md documenting: purpose, file format, rules, and current contents.",
+        "Read the coding standards, contracts, and file inventory for one or more src/ subfolders. " +
+        "MANDATORY: call this BEFORE editing or creating any file inside a src/ subfolder you haven't worked in this session. " +
+        "Returns each folder's README.md with: purpose, file format rules, naming conventions, and list of existing files. " +
+        "WHEN TO USE: before any edit to src/tools/, src/channels/, src/providers/, src/agent/, etc. " +
+        "WHEN NOT TO USE: for .agents/tools/ or config files outside src/. " +
+        "Example: folders: ['tools', 'providers'] reads both READMEs before you add a new provider or tool.",
     inputSchema: z.object({
         folders: z.array(
             z.string().describe("Folder name under src/ \u2014 e.g. 'tools', 'channels', 'providers', 'agent', 'llm', 'utils', 'logs', 'mcp-servers'")

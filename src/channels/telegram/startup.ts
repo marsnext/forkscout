@@ -6,6 +6,7 @@ import { sendMessage, setMyCommands } from "@/channels/telegram/api.ts";
 import { mdToHtml, splitMarkdown } from "@/channels/telegram/format.ts";
 import { runAgent } from "@/agent/index.ts";
 import { log } from "@/logs/logger.ts";
+import cron from "node-cron";
 import { readFileSync, existsSync, unlinkSync } from "fs";
 import { resolve } from "path";
 
@@ -82,4 +83,17 @@ export async function runStartup(token: string, _config: AppConfig, vaultOwnerId
         await setMyCommands(token, ownerCommands, { type: "chat", chat_id: ownerId });
     }
     logger.info("Bot commands registered in Telegram menu (owner-scoped).");
+
+    // Schedule daily USA-Iran war news alerts (8 AM IST: 02:30 UTC)
+    try {
+        cron.schedule('30 2 * * *', async () => {
+            logger.info("Daily USA-Iran war news alert triggered");
+            for (const ownerId of vaultOwnerIds) {
+                await sendMessage(token, ownerId, "📊 Daily USA-Iran War Update (Scheduled)", "HTML").catch(() => {});
+            }
+        });
+        logger.info("USA-Iran war news cron job registered (daily at 8 AM IST)");
+    } catch (err) {
+        logger.warn("Failed to schedule daily news alert", err);
+    }
 }

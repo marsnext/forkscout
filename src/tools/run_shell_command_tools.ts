@@ -55,10 +55,14 @@ const CommandSchema = z.object({
 
 export const run_shell_command_tools = tool({
     description:
-        "Run one or more shell commands. Pass a single command string for quick use, " +
-        "or an array of command objects to batch multiple commands in one call. " +
-        "Array commands run sequentially — stops on first failure unless ignore_error is set. " +
-        "CANNOT restart or kill the agent — use validate_and_restart for that.",
+        "Run one or more shell commands and return stdout/stderr. Pass a single string for one-off commands, " +
+        "or an array of {command, cwd, timeout, ignore_error} objects for sequential batches. " +
+        "WHEN TO USE: build/lint/test (bun run typecheck, bun test), git operations beyond git_operations_tools, " +
+        "checking installed tools (which bun), running scripts (bun run migrate), installing packages. " +
+        "WHEN NOT TO USE: reading files — use read_file_tools; searching content — use grep_search_tools; " +
+        "listing directories — use list_dir_tools; restarting the agent — use validate_and_restart. " +
+        "BLOCKED: pkill, killall, bun start, bun run src/index — these are intercepted for safety. " +
+        "Batch example: commands: [{command: 'bun run typecheck'}, {command: 'git status', ignore_error: true}]",
     inputSchema: z.object({
         commands: z.union([
             z.string().describe("Single shell command to run"),

@@ -34,9 +34,13 @@ function readOne(path: string, startLine?: number, endLine?: number) {
 
 export const read_file_tools = tool({
     description:
-        "Read one or more files. Pass an array of file requests. " +
-        "Files \u2264200 lines: returns full content. " +
-        "Files >200 lines: returns line count only \u2014 pass startLine/endLine for a range.",
+        "Read one or more files. Files ≤200 lines: returns full content immediately. " +
+        "Files >200 lines: returns only the line count — call again with startLine/endLine to read a specific range. " +
+        "WHEN TO USE: inspecting any file before editing it; reading configs, source code, or output files. " +
+        "WHEN NOT TO USE: searching for a pattern inside files — use grep_search_tools (much faster). " +
+        "Listing directory contents — use list_dir_tools. Full project structure — use project_sourcemap_tools. " +
+        "Always batch: pass multiple files in one call — never call once per file. " +
+        "Example: files: [{path: 'src/config.ts'}, {path: 'src/agent/index.ts', startLine: 1, endLine: 60}]",
     inputSchema: z.object({
         files: z.array(
             z.object({

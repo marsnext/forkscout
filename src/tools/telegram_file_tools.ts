@@ -15,10 +15,14 @@ const DL_DIR = resolve(process.cwd(), ".agents", "downloads");
 
 export const telegram_download_file = tool({
     description:
-        "Download a file from Telegram by its file_id and save it locally. " +
-        "Use this to access voice messages, photos, documents, audio, or any media " +
-        "sent by the user in Telegram. Returns the local file path for further processing " +
-        "(e.g. transcription, reading, analysis).",
+        "Download a Telegram file (photo, voice, document, audio, video) by its file_id and save it to .agents/downloads/. " +
+        "Returns the local file path — pass it to other tools for further processing. " +
+        "WHEN TO USE: user sends a photo → download then pass to analyze_image (for vision/OCR); " +
+        "user sends a PDF → download then pass to pdf_tools (for text extraction); " +
+        "user sends a voice message → download then transcribe. " +
+        "File IDs come from the Telegram message object: voice→message.voice.file_id, photo→message.photo[-1].file_id, doc→message.document.file_id. " +
+        "Limitation: max 20MB (Telegram API limit). " +
+        "Example: {file_id: 'AgACAgIAAxkB...', filename: 'user_receipt.jpg'} → {local_path: '/path/.agents/downloads/user_receipt.jpg'}",
     inputSchema: z.object({
         file_id: z.string().describe(
             "The file_id from the Telegram message object. " +

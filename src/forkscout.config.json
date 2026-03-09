@@ -45,7 +45,7 @@
         "maxTokens": 4096
     },
     "llm": {
-        "provider": "lmstudio",
+        "provider": "openrouter",
         "tier": "balanced",
         "maxTokens": 4096,
         "maxSteps": 200,
@@ -57,7 +57,7 @@
         "providers": {
             "openrouter": {
                 "fast": "google/gemini-2.0-flash-001",
-                "balanced": "minimax/minimax-m2.5",
+                "balanced": "inception/mercury-2",
                 "powerful": "anthropic/claude-sonnet-4-5",
                 "vision": "google/gemini-2.0-flash-001",
                 "summarizer": "google/gemini-2.0-flash-001"

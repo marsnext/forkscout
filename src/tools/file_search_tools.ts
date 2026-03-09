@@ -6,9 +6,14 @@ import { execSync } from "child_process";
 
 export const file_search_tools = tool({
     description:
-        "Find files matching glob patterns. Returns structured list of matching paths. " +
-        "Use instead of run_shell_command('find ...') for cleaner results. " +
-        "Supports multiple patterns in one call.",
+        "Find files by glob pattern across the workspace. Returns matching paths sorted by modification time. " +
+        "Supports patterns like 'src/tools/*.ts', '**/*.json', 'src/**/README.md'. " +
+        "WHEN TO USE: finding files by name, extension, or path prefix; checking if a file exists; " +
+        "discovering all files of a type (e.g. all .ts files under channels/). " +
+        "WHEN NOT TO USE: searching for text inside files — use grep_search_tools. " +
+        "Listing one directory — use list_dir_tools (simpler). " +
+        "Always batch: pass multiple patterns in one call. " +
+        "Example: patterns: ['src/channels/**/*.ts', '**/*.config.json'] finds all channel TS files + all config files.",
     inputSchema: z.object({
         patterns: z.array(
             z.string().describe("Glob pattern, e.g. 'src/tools/*.ts', 'src/**/README.md', '**/*.json'")

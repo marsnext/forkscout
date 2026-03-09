@@ -5,7 +5,13 @@ import { resolve, dirname } from "path";
 
 
 export const write_file_tools = tool({
-    description: "Write content to one or more files (creates or overwrites, creates parent directories if needed). Pass an array of { path, content } objects.",
+    description:
+        "Write or overwrite one or more files. Creates parent directories automatically. " +
+        "WHEN TO USE: creating a new file; doing a full rewrite where content completely changes. " +
+        "WHEN NOT TO USE: surgical edits to existing files — use edit_file_tools instead (faster, no full rewrite, avoids overwrite bugs). " +
+        "Always batch: pass all files in a single call rather than one file per call. " +
+        "Example: files: [{path: 'src/utils/helper.ts', content: 'export const add = (a: number, b: number) => a + b;'}, " +
+        "{path: 'src/utils/index.ts', content: 'export * from ./helper.ts;'}]",
     inputSchema: z.object({
         files: z.array(
             z.object({

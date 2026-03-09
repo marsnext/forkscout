@@ -82,7 +82,13 @@ function score(entry: ToolEntry, query: string): number {
 
 export const find_tools = tool({
     description:
-        "Search for available tools by keyword. Call this when you need a capability that isn't in your bootstrap tools. Returns matching tool names, descriptions, and parameter names so you can then call them via call_tool.",
+        "Search for on-demand tools in .agents/tools/ by keyword. " +
+        "WHEN TO USE: any time you need a capability not in your bootstrap tools (browser, git, SQLite, regex, PDF, image analysis, workers, cron jobs, etc.). " +
+        "Always call this before assuming a tool doesn't exist — there are 30+ extended tools available. " +
+        "Returns tool name, full description, and parameter names — enough to call the tool immediately. " +
+        "WHEN NOT TO USE: for bootstrap tools already loaded (read_file_tools, edit_file_tools, run_shell_command_tools, etc.). " +
+        "Example queries: 'search web', 'browse website', 'sqlite database', 'git commit push', 'analyze image', 'workers parallel tasks', 'send telegram message'. " +
+        "Tip: if unsure what capability is available, query broadly: find_tools('pdf document extract') or find_tools('schedule cron job').",
     inputSchema: z.object({
         query: z.string().describe(
             "Keywords describing what you want to do, e.g. 'read file', 'search web', 'write file'"

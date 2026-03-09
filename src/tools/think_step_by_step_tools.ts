@@ -8,10 +8,16 @@ import { z } from "zod";
 
 export const think_step_by_step = tool({
     description:
-        "Think through a problem step-by-step before acting. " +
-        "Use this when a task has multiple steps, unknowns, or risks. " +
-        "Write out your plan, constraints, and approach. This helps avoid mistakes and loops. " +
-        "The thinking is recorded in context so you don't repeat yourself.",
+        "Record a structured reasoning plan before acting on a complex or risky task. " +
+        "Write out the problem, ordered steps, risks, and what you are doing first. " +
+        "Output stays in context to prevent loops and repetition. " +
+        "WHEN TO USE: task has 4+ steps; before destructive operations (delete, overwrite, restart); " +
+        "debugging a multi-layer issue; when two approaches exist and tradeoffs need comparison. " +
+        "WHEN NOT TO USE: single-step trivial tasks — just do them without this overhead. " +
+        "Example: {problem: 'Migrate SQLite schema without data loss', " +
+        "steps: ['Backup .agents/db/', 'Write migration SQL', 'Run on dev copy', 'Apply to live db'], " +
+        "risks: ['Table rename drops data if migration is wrong'], " +
+        "decision: 'Start with backup to .agents/db-backup/'}",
     inputSchema: z.object({
         problem: z.string().describe("What problem or task you're solving"),
         steps: z.array(z.string()).describe("Your planned steps in order"),
