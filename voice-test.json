@@ -1,1 +1,0 @@
-{"text": " Hi, how are you?", "segments": [{"id": 0, "seek": 0, "start": 0.0, "end": 2.0, "text": " Hi, how are you?", "tokens": [50364, 2421, 11, 577, 366, 291, 30, 50464], "temperature": 0.0, "avg_logprob": -0.4471320046318902, "compression_ratio": 0.6666666666666666, "no_speech_prob": 0.059103626757860184}], "language": "en"}

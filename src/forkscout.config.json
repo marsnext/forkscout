@@ -45,7 +45,7 @@
         "maxTokens": 4096
     },
     "llm": {
-        "provider": "openrouter",
+        "provider": "lmstudio",
         "tier": "balanced",
         "maxTokens": 4096,
         "maxSteps": 200,
@@ -183,9 +183,9 @@
             },
             "lmstudio": {
                 "fast": "qwen/qwen3-coder-next",
-                "balanced": "qwen/qwen3-coder-next",
+                "balanced": "zai-org/glm-4.7-flash",
                 "powerful": "qwen/qwen3-coder-next",
-                "vision": "",
+                "vision": "qwen/qwen3-coder-next",
                 "summarizer": "qwen/qwen3-coder-next"
             },
             "baseten": {

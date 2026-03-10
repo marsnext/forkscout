@@ -1,0 +1,88 @@
+/* src/App.module.css */
+
+.root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+    background: var(--bg);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--bg2);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.logoIcon {
+    font-size: 16px;
+}
+
+.logoText {
+    font-size: 14px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #a18fff, #7c6af7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.pageChip {
+    flex: 1;
+    font-size: 11px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 10px;
+}
+
+.actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.iconBtn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+
+.iconBtn:hover {
+    background: var(--bg3);
+    color: var(--text);
+}
+
+.errorBanner {
+    background: rgba(248, 113, 113, 0.1);
+    border-bottom: 1px solid var(--error);
+    color: var(--error);
+    font-size: 12px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+}

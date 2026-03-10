@@ -8,6 +8,8 @@ tmp/
 lg_tv_store.json
 bun.lockb
 .agents/
+forkscout-window/sidepanel/
+forkscout-window/ui/node_modules/
 .devtools
 base.config.json
 src/forkscout.config1.json
