@@ -41,6 +41,10 @@ const logger = log("self");
 /** Path to the gitignored jobs file (next to auth.json) */
 const JOBS_FILE = resolve(process.cwd(), ".agents", "self-jobs.json");
 
+/** Persistent extension API token — survives restarts. Stored in .agents/.ext-token (gitignored). */
+const EXT_TOKEN_PATH = resolve(process.cwd(), ".agents", ".ext-token");
+let extToken = "";
+
 /** Remove a single job from self-jobs.json (used by run_once cleanup). */
 function removeJobFromFile(name: string): void {
     if (!existsSync(JOBS_FILE)) return;
@@ -221,6 +225,20 @@ export function startHttpServer(config: AppConfig): void {
     // Token lives only in memory, generated on frontend start, revoked on stop.
     httpTriggerToken = "";
 
+    // Load or create persistent extension token (survives restarts)
+    try {
+        mkdirSync(resolve(process.cwd(), ".agents"), { recursive: true });
+        if (existsSync(EXT_TOKEN_PATH)) {
+            extToken = readFileSync(EXT_TOKEN_PATH, "utf-8").trim();
+        } else {
+            extToken = crypto.randomUUID();
+            writeFileSync(EXT_TOKEN_PATH, extToken, "utf-8");
+        }
+        logger.info(`Extension token ready (${extToken.slice(0, 8)}…) — copy from .agents/.ext-token into the Forkscout Window extension settings`);
+    } catch (err: any) {
+        logger.error("Failed to load/create extension token:", err.message);
+    }
+
     const serverStartedAt = Date.now();
 
     Bun.serve({
@@ -295,7 +313,10 @@ export function startHttpServer(config: AppConfig): void {
             // ── Auth check for all other endpoints ───────────────────────────
             const authHeader = req.headers.get("authorization") ?? "";
             const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-            if (!httpTriggerToken || bearerToken !== httpTriggerToken) {
+            const isAuthorized =
+                (httpTriggerToken && bearerToken === httpTriggerToken) ||
+                (extToken && bearerToken === extToken);
+            if (!isAuthorized) {
                 return json({ ok: false, error: "Unauthorized" }, 401);
             }
 
@@ -453,6 +474,38 @@ export function startHttpServer(config: AppConfig): void {
                 httpQueues.set(resolvedKey, next.catch(() => { }));
 
                 const result = await resultPromise;
+                return json(result, result.ok ? 200 : 500);
+            }
+
+            // ── Chrome Extension chat endpoint ────────────────────────────────
+            // POST /api/chat  { message: string, sessionKey?: string }
+            // Returns { ok: true, text: string, steps: number }
+            if (req.method === "POST" && url.pathname === "/api/chat") {
+                let body: unknown;
+                try { body = await req.json(); } catch {
+                    return json({ ok: false, error: "Invalid JSON body" }, 400);
+                }
+
+                const { message, sessionKey } = body as Record<string, unknown>;
+                if (typeof message !== "string" || !message.trim()) {
+                    return json({ ok: false, error: "message is required" }, 400);
+                }
+
+                const resolvedKey =
+                    typeof sessionKey === "string" && sessionKey.trim() ? sessionKey.trim() : "ext";
+
+                const prev = httpQueues.get(resolvedKey) ?? Promise.resolve();
+                let resolveChat!: (v: { ok: true; text: string; steps: number } | { ok: false; error: string }) => void;
+                const chatResult = new Promise<{ ok: true; text: string; steps: number } | { ok: false; error: string }>(
+                    (r) => { resolveChat = r; }
+                );
+                const next = prev.then(async () => {
+                    const cfg = getConfig();
+                    resolveChat(await handleHttpMessage(cfg, resolvedKey, message.trim(), "user"));
+                });
+                httpQueues.set(resolvedKey, next.catch(() => { }));
+
+                const result = await chatResult;
                 return json(result, result.ok ? 200 : 500);
             }
 

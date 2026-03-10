@@ -11,9 +11,10 @@ interface Props {
 
 export function SettingsPanel({ settings, onSave, onClose }: Props) {
     const [url, setUrl] = useState(settings.serverUrl);
+    const [token, setToken] = useState(settings.token ?? "");
 
     const save = () => {
-        onSave({ serverUrl: url.trim().replace(/\/$/, "") });
+        onSave({ serverUrl: url.trim().replace(/\/$/, ""), token: token.trim() });
         onClose();
     };
 
@@ -28,9 +29,21 @@ export function SettingsPanel({ settings, onSave, onClose }: Props) {
                         className={styles.input}
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
-                        placeholder="http://localhost:3210"
+                        placeholder="http://localhost:3200"
                     />
                     <span className={styles.hint}>The address of your running forkscout agent</span>
+                </label>
+
+                <label className={styles.label}>
+                    API token
+                    <input
+                        className={styles.input}
+                        type="password"
+                        value={token}
+                        onChange={(e) => setToken(e.target.value)}
+                        placeholder="Paste token from .agents/.ext-token"
+                    />
+                    <span className={styles.hint}>Run: <code>cat .agents/.ext-token</code> in your agent folder</span>
                 </label>
 
                 <label className={styles.label}>

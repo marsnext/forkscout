@@ -3,8 +3,9 @@ import { useState, useCallback, useRef } from "react";
 import type { Message, AgentSettings } from "../types";
 
 const DEFAULT_SETTINGS: AgentSettings = {
-    serverUrl: "http://localhost:3210",
+    serverUrl: "http://localhost:3200",
     sessionKey: `ext-${Date.now()}`,
+    token: "",
 };
 
 export function useAgent() {
@@ -54,7 +55,10 @@ export function useAgent() {
             try {
                 const res = await fetch(`${settings.serverUrl}/api/chat`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...(settings.token ? { "Authorization": `Bearer ${settings.token}` } : {}),
+                    },
                     signal: abortRef.current.signal,
                     body: JSON.stringify({
                         message: contextNote + userText,

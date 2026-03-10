@@ -14,6 +14,7 @@ export interface PageContext {
 }
 
 export interface AgentSettings {
-    serverUrl: string;   // e.g. http://localhost:3210
+    serverUrl: string;   // e.g. http://localhost:3200
     sessionKey: string;
+    token: string;       // Bearer token from .agents/.ext-token
 }
