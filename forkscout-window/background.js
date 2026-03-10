@@ -8,12 +8,12 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "ask-forkscout",
     title: "Ask Forkscout about this",
-    contexts: ["selection", "page", "link", "image"],
+    contexts: ["selection", "page", "link", "image"]
   });
   chrome.contextMenus.create({
     id: "forkscout-summarize",
     title: "Summarize this page",
-    contexts: ["page"],
+    contexts: ["page"]
   });
 });
 
@@ -25,8 +25,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   const payload =
     info.menuItemId === "forkscout-summarize"
-      ? { type: "INJECT_PROMPT", prompt: "Summarize the content of this page for me." }
-      : { type: "INJECT_PROMPT", prompt: `Tell me about: "${info.selectionText ?? info.linkUrl ?? "this page"}"` };
+      ? {
+          type: "INJECT_PROMPT",
+          prompt: "Summarize the content of this page for me."
+        }
+      : {
+          type: "INJECT_PROMPT",
+          prompt: `Tell me about: "${info.selectionText ?? info.linkUrl ?? "this page"}"`
+        };
 
   // Small delay so side panel has time to initialize
   setTimeout(() => {
@@ -50,12 +56,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: new Function(message.code) as () => unknown, // user-controlled code runs in page context
-          world: "MAIN",
+          func: /** @type {() => unknown} */ (new Function(message.code)),
+          world: "MAIN"
         });
         sendResponse({ ok: true, result: results?.[0]?.result });
-      } catch (err: unknown) {
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        });
       }
     });
     return true; // keep channel open for async sendResponse
@@ -72,12 +81,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             url: location.href,
             title: document.title,
             text: document.body?.innerText?.slice(0, 8000) ?? "",
-            selectedText: window.getSelection()?.toString() ?? "",
-          }),
+            selectedText: window.getSelection()?.toString() ?? ""
+          })
         });
         sendResponse({ ok: true, context: results?.[0]?.result });
-      } catch (err: unknown) {
-        sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      } catch (err) {
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        });
       }
     });
     return true;
@@ -89,13 +101,15 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
   chrome.scripting
     .executeScript({
       target: { tabId },
-      func: () => ({ url: location.href, title: document.title }),
+      func: () => ({ url: location.href, title: document.title })
     })
     .then((results) => {
-      chrome.runtime.sendMessage({
-        type: "TAB_CHANGED",
-        context: results?.[0]?.result,
-      }).catch(() => {});
+      chrome.runtime
+        .sendMessage({
+          type: "TAB_CHANGED",
+          context: results?.[0]?.result
+        })
+        .catch(() => {});
     })
     .catch(() => {});
 });
